@@ -2,8 +2,10 @@ package com.example.macathon_monashmates.screens
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +22,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.macathon_monashmates.models.User
+import com.example.macathon_monashmates.managers.UserManager
 
 class StudentSignupPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,12 +39,9 @@ fun StudentSignupScreen() {
     var fullName by remember { mutableStateOf("") }
     var studentId by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var confirmPasswordVisible by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
+    val userManager = remember { UserManager(context) }
     
     Column(
         modifier = Modifier
@@ -101,53 +102,34 @@ fun StudentSignupScreen() {
             }
             
             item {
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            
-            item {
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = { Text("Confirm Password") },
-                    visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                            Icon(
-                                imageVector = if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = if (confirmPasswordVisible) "Hide password" else "Show password"
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            
-            item {
                 Button(
                     onClick = { 
-                        // TODO: Add actual signup logic here
-                        val intent = Intent(context, DiscoverPage::class.java)
+                        // Create new user
+                        val user = User(
+                            name = fullName,
+                            studentId = studentId,
+                            email = email,
+                            isMentor = false,
+                            subjects = emptyList() // Will be set in interest page
+                        )
+                        
+                        // Save user
+                        userManager.saveUser(user)
+                        userManager.setCurrentUser(user)
+                        
+                        // Show success message
+                        Toast.makeText(context, "Sign up successful! Please login.", Toast.LENGTH_SHORT).show()
+                        
+                        // Redirect to new login page
+                        val intent = Intent(context, NewLoginPage::class.java)
                         context.startActivity(intent)
                         (context as ComponentActivity).finish()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = fullName.isNotEmpty() && studentId.isNotEmpty() && email.isNotEmpty()
                 ) {
                     Text("Sign Up")
                 }

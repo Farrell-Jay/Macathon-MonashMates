@@ -29,6 +29,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.macathon_monashmates.screens.SignUpPage
+import com.example.macathon_monashmates.screens.NewLoginPage
 import com.example.macathon_monashmates.ui.theme.MacathonMonashMatesTheme
 
 class MainActivity : ComponentActivity() {
@@ -83,7 +84,8 @@ private fun WelcomeScreenContent(modifier: Modifier = Modifier) {
                 },
                 onLogInClick = {
                     logInPressed = true
-                    Toast.makeText(context, "Log In clicked!", Toast.LENGTH_SHORT).show()
+                    val intent = Intent(context, NewLoginPage::class.java)
+                    context.startActivity(intent)
                     logInPressed = false
                 }
             )

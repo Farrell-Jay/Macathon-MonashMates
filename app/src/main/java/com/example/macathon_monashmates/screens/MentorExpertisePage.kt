@@ -7,52 +7,39 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.example.macathon_monashmates.utils.SubjectReader
 import com.example.macathon_monashmates.utils.Subject
-import com.example.macathon_monashmates.models.User
-import com.example.macathon_monashmates.managers.UserManager
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalLayoutApi::class)
-class MentorSignupPage : ComponentActivity() {
+class MentorExpertisePage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MentorSignupScreen()
+            MentorExpertiseScreen()
         }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun MentorSignupScreen() {
-    var fullName by remember { mutableStateOf("") }
-    var studentId by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    
+fun MentorExpertiseScreen() {
     val subjects = remember { mutableStateListOf<Subject>() }
     var selectedSubjects by remember { mutableStateOf(setOf<Subject>()) }
     var showSubjectDialog by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val userManager = remember { UserManager(context) }
     
     LaunchedEffect(Unit) {
         scope.launch {
@@ -68,7 +55,7 @@ fun MentorSignupScreen() {
         // Back button
         IconButton(
             onClick = { 
-                val intent = Intent(context, SignUpPage::class.java)
+                val intent = Intent(context, MentorSignupPage::class.java)
                 context.startActivity(intent)
                 (context as ComponentActivity).finish()
             },
@@ -81,76 +68,65 @@ fun MentorSignupScreen() {
         }
         
         Text(
-            text = "Mentor Sign Up",
+            text = "Select Areas of Expertise",
             fontSize = 24.sp,
             fontWeight = MaterialTheme.typography.headlineMedium.fontWeight,
             modifier = Modifier.padding(bottom = 24.dp)
         )
         
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        Text(
+            text = "Choose the subjects you are comfortable mentoring in",
+            fontSize = 16.sp,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        OutlinedButton(
+            onClick = { showSubjectDialog = true },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            item {
-                OutlinedTextField(
-                    value = fullName,
-                    onValueChange = { fullName = it },
-                    label = { Text("Full Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            
-            item {
-                OutlinedTextField(
-                    value = studentId,
-                    onValueChange = { studentId = it },
-                    label = { Text("Student ID") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            
-            item {
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            
-            item {
-                Button(
-                    onClick = { 
-                        // Create new user
-                        val user = User(
-                            name = fullName,
-                            studentId = studentId,
-                            email = email,
-                            isMentor = true,
-                            subjects = emptyList() // Will be set in expertise page
-                        )
-                        
-                        // Save user
-                        userManager.saveUser(user)
-                        userManager.setCurrentUser(user)
-                        
-                        // Show success message
-                        Toast.makeText(context, "Sign up successful! Please login.", Toast.LENGTH_SHORT).show()
-                        
-                        // Redirect to new login page
-                        val intent = Intent(context, NewLoginPage::class.java)
-                        context.startActivity(intent)
-                        (context as ComponentActivity).finish()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    enabled = fullName.isNotEmpty() && studentId.isNotEmpty() && email.isNotEmpty()
-                ) {
-                    Text("Sign Up")
+            Text("Select Subjects")
+        }
+        
+        if (selectedSubjects.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Selected Subjects:",
+                fontSize = 16.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                selectedSubjects.forEach { subject ->
+                    AssistChip(
+                        onClick = { },
+                        label = { Text(subject.toString()) },
+                        modifier = Modifier.padding(4.dp)
+                    )
                 }
             }
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        Button(
+            onClick = {
+                // TODO: Save expertise selection
+                Toast.makeText(context, "Expertise saved successfully!", Toast.LENGTH_SHORT).show()
+                
+                // Redirect to discover page
+                val intent = Intent(context, DiscoverPage::class.java)
+                context.startActivity(intent)
+                (context as ComponentActivity).finish()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            shape = RoundedCornerShape(8.dp),
+            enabled = selectedSubjects.isNotEmpty()
+        ) {
+            Text("Continue")
         }
     }
     

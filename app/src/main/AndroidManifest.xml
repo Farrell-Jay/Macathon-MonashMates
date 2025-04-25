@@ -42,6 +42,14 @@
             android:exported="false"
             android:theme="@style/Theme.MacathonMonashMates" />
         <activity
+            android:name=".screens.MentorExpertisePage"
+            android:exported="false"
+            android:theme="@style/Theme.MacathonMonashMates" />
+        <activity
+            android:name=".screens.StudentInterestPage"
+            android:exported="false"
+            android:theme="@style/Theme.MacathonMonashMates" />
+        <activity
             android:name=".screens.DiscoverPage"
             android:exported="false"
             android:theme="@style/Theme.MacathonMonashMates" />
@@ -55,6 +63,22 @@
             android:theme="@style/Theme.MacathonMonashMates" />
         <activity
             android:name=".screens.ProfilePage"
+            android:exported="false"
+            android:theme="@style/Theme.MacathonMonashMates" />
+        <activity
+            android:name=".screens.ProfileViewPage"
+            android:exported="false"
+            android:theme="@style/Theme.MacathonMonashMates" />
+        <activity
+            android:name=".screens.ChatHistoryPage"
+            android:exported="false"
+            android:theme="@style/Theme.MacathonMonashMates" />
+        <activity
+            android:name=".screens.DebugDataPage"
+            android:exported="false"
+            android:theme="@style/Theme.MacathonMonashMates" />
+        <activity
+            android:name=".screens.NewLoginPage"
             android:exported="false"
             android:theme="@style/Theme.MacathonMonashMates" />
     </application>

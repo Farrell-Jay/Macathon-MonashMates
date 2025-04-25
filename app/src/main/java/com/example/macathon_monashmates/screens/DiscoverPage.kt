@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.macathon_monashmates.R
+import com.example.macathon_monashmates.models.User
 import com.google.ai.client.generativeai.Chat
 
 class DiscoverPage : ComponentActivity() {
@@ -185,11 +186,39 @@ fun DiscoverScreen() {
             ) {
                 if (showMentors) {
                     items(mentors) { mentor ->
-                        MentorCard(mentor)
+                        MentorCard(
+                            mentor = mentor,
+                            onClick = {
+                                val intent = Intent(context, ProfileViewPage::class.java).apply {
+                                    putExtra("user", User(
+                                        name = mentor.name,
+                                        studentId = "12345678", // TODO: Replace with actual student ID
+                                        email = "mentor@monash.edu", // TODO: Replace with actual email
+                                        isMentor = true,
+                                        subjects = mentor.subjects.split(", ").toList()
+                                    ))
+                                }
+                                context.startActivity(intent)
+                            }
+                        )
                     }
                 } else {
                     items(students) { student ->
-                        StudentCard(student)
+                        StudentCard(
+                            student = student,
+                            onClick = {
+                                val intent = Intent(context, ProfileViewPage::class.java).apply {
+                                    putExtra("user", User(
+                                        name = student.name,
+                                        studentId = "87654321", // TODO: Replace with actual student ID
+                                        email = "student@monash.edu", // TODO: Replace with actual email
+                                        isMentor = false,
+                                        subjects = listOf(student.subject)
+                                    ))
+                                }
+                                context.startActivity(intent)
+                            }
+                        )
                     }
                 }
             }
@@ -198,12 +227,13 @@ fun DiscoverScreen() {
 }
 
 @Composable
-fun MentorCard(mentor: Mentor) {
+fun MentorCard(mentor: Mentor, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
@@ -270,12 +300,13 @@ fun MentorCard(mentor: Mentor) {
 }
 
 @Composable
-fun StudentCard(student: Student) {
+fun StudentCard(student: Student, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier

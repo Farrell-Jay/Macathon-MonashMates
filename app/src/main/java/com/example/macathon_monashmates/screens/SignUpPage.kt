@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,25 +54,34 @@ fun SignUpScreen() {
                 Icon(
                     imageVector = Icons.Default.ArrowBack,
                     contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = Color(0xFF003B5C)
                 )
             }
         }
+
+        // Logo
+        Image(
+            painter = painterResource(id = R.drawable.monashmates),
+            contentDescription = "MonashMates Logo",
+            modifier = Modifier
+                .size(150.dp)
+                .padding(top = 16.dp, bottom = 32.dp)
+        )
 
         Text(
             text = "Choose Your Role",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 16.dp)
+            color = Color(0xFF003B5C),
+            modifier = Modifier.padding(bottom = 16.dp)
         )
 
         Text(
-            text = "Select how you want to join MonashMates",
+            text = "Select how you want to join our community",
             fontSize = 16.sp,
-            modifier = Modifier.padding(top = 16.dp)
+            color = Color.Gray,
+            modifier = Modifier.padding(bottom = 32.dp)
         )
-
-        Spacer(modifier = Modifier.height(32.dp))
 
         // Mentor Card
         Card(
@@ -79,7 +89,7 @@ fun SignUpScreen() {
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(12.dp),
             onClick = {
                 val intent = Intent(context, MentorSignupPage::class.java)
                 context.startActivity(intent)
@@ -101,12 +111,14 @@ fun SignUpScreen() {
                     text = "Mentor",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
+                    color = Color(0xFF003B5C),
                     modifier = Modifier.padding(top = 16.dp)
                 )
 
                 Text(
                     text = "Share your knowledge and guide students",
                     textAlign = TextAlign.Center,
+                    color = Color.Gray,
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
@@ -118,7 +130,7 @@ fun SignUpScreen() {
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(12.dp),
             onClick = {
                 val intent = Intent(context, StudentSignupPage::class.java)
                 context.startActivity(intent)
@@ -140,12 +152,14 @@ fun SignUpScreen() {
                     text = "Student",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
+                    color = Color(0xFF003B5C),
                     modifier = Modifier.padding(top = 16.dp)
                 )
 
                 Text(
                     text = "Connect with mentors and learn",
                     textAlign = TextAlign.Center,
+                    color = Color.Gray,
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
