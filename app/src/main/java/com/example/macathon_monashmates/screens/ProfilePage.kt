@@ -273,13 +273,22 @@ private fun MainContent(
                 .padding(20.dp)
         ) {
             // Stats Row at the top
-            val studentSubjects = if (currentUser?.isMentor == true) {
-                subjects
-            } else {
-                sharedPreferences.getString("${currentUser?.studentId}_subjects", "")
+            val studentSubjects = if (currentUser?.isMentor == false) {
+                sharedPreferences.getString("${currentUser.studentId}_subjects", "")
                     ?.split("|||")
                     ?.filter { it.isNotEmpty() }
                     ?: emptyList()
+            } else {
+                subjects
+            }
+
+            val majorsList = if (currentUser?.isMentor == false) {
+                sharedPreferences.getString("${currentUser.studentId}_majors", "")
+                    ?.split(",")
+                    ?.filter { it.isNotEmpty() }
+                    ?: emptyList()
+            } else {
+                emptyList()
             }
 
             Row(
@@ -307,10 +316,7 @@ private fun MainContent(
                         label = "Units"
                     )
                     StatColumn(
-                        number = sharedPreferences.getString("${currentUser?.studentId}_majors", "")
-                            ?.split(",")
-                            ?.filter { it.isNotEmpty() }
-                            ?.size?.toString() ?: "0",
+                        number = majorsList.size.toString(),
                         label = "Areas of Interest"
                     )
                 }
@@ -362,11 +368,11 @@ private fun MainContent(
                         }
                     }
                 }
+                Divider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
-            Divider(modifier = Modifier.padding(vertical = 16.dp))
-
             if (currentUser?.isMentor == true) {
+                // Mentor-specific sections
                 if (expertiseAreas.isNotEmpty()) {
                     ExpertiseSection(expertiseAreas, expertiseLevels)
                 }
@@ -374,14 +380,8 @@ private fun MainContent(
                     AvailabilitySection(timeSlots)
                 }
             } else {
-                // Areas of Interest Section for Students
-                val majorsList = sharedPreferences.getString("${currentUser?.studentId}_majors", "")
-                    ?.split(",")
-                    ?.filter { it.isNotEmpty() }
-                    ?: emptyList()
-
+                // Student-specific sections
                 if (majorsList.isNotEmpty()) {
-                    Divider(modifier = Modifier.padding(vertical = 16.dp))
                     Text(
                         text = "Areas of Interest",
                         fontSize = 20.sp,
@@ -407,10 +407,10 @@ private fun MainContent(
                             }
                         }
                     }
+                    Divider(modifier = Modifier.padding(vertical = 16.dp))
                 }
 
                 if (academicGoals.isNotEmpty()) {
-                    Divider(modifier = Modifier.padding(vertical = 16.dp))
                     AcademicGoalsSection(academicGoals)
                 }
 

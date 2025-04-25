@@ -120,17 +120,23 @@ fun NewLoginScreen() {
                     userManager.setCurrentUser(user)
                     Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                     
-                    // Check if we need to redirect to StudentInterestPage
                     val activity = context as? ComponentActivity
                     if (activity?.intent?.getBooleanExtra("REDIRECT_TO_INTEREST", false) == true &&
                         activity.intent?.getStringExtra("STUDENT_ID") == studentId) {
-                        // Redirect to StudentInterestPage
+                        // Coming from student signup - redirect to StudentInterestPage
                         val interestIntent = Intent(context, StudentInterestPage::class.java)
                         context.startActivity(interestIntent)
                     } else {
-                        // Normal flow - redirect to HomePage
-                        val intent = Intent(context, HomePage::class.java)
-                        context.startActivity(intent)
+                        // Normal login flow
+                        if (user.isMentor) {
+                            // Mentor - redirect to MentorExpertisePage
+                            val mentorIntent = Intent(context, MentorExpertisePage::class.java)
+                            context.startActivity(mentorIntent)
+                        } else {
+                            // Student - redirect to HomePage
+                            val intent = Intent(context, HomePage::class.java)
+                            context.startActivity(intent)
+                        }
                     }
                     (context as ComponentActivity).finish()
                 } else {
