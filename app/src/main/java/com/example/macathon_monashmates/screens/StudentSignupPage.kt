@@ -118,11 +118,13 @@ fun StudentSignupScreen() {
                         userManager.setCurrentUser(user)
                         
                         // Show success message
-                        Toast.makeText(context, "Sign up successful! Please login.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Sign up successful! Please login to continue.", Toast.LENGTH_SHORT).show()
                         
-                        // Redirect to new login page
-                        val intent = Intent(context, NewLoginPage::class.java)
-                        context.startActivity(intent)
+                        // Redirect to Login page
+                        val loginIntent = Intent(context, NewLoginPage::class.java)
+                        loginIntent.putExtra("REDIRECT_TO_INTEREST", true) // Flag to indicate redirect to interest page after login
+                        loginIntent.putExtra("STUDENT_ID", studentId) // Pass student ID for verification
+                        context.startActivity(loginIntent)
                         (context as ComponentActivity).finish()
                     },
                     modifier = Modifier

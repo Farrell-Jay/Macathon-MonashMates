@@ -91,51 +91,48 @@ fun ChatHistoryScreen(navController: NavController) {
         )
     )
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        // Header
-        Row(
+    Scaffold(
+        bottomBar = { BottomNavigationBar(currentPage = 2) }
+    ) { padding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(padding)
+                .background(Color.White)
         ) {
-            IconButton(
-                onClick = { navController.navigateUp() }
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_back),
-                    contentDescription = "Back"
+                Text(
+                    text = "Chat History",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(start = 16.dp)
                 )
             }
             
-            Text(
-                text = "Chat History",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(start = 16.dp)
-            )
-        }
-        
-        // Chat List
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(chatHistory) { chatItem ->
-                ChatHistoryItem(
-                    chatItem = chatItem,
-                    onItemClick = {
-                        val intent = Intent(context, ChatPage::class.java).apply {
-                            putExtra("user", chatItem.user)
+            // Chat List
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(chatHistory) { chatItem ->
+                    ChatHistoryItem(
+                        chatItem = chatItem,
+                        onItemClick = {
+                            val intent = Intent(context, ChatPage::class.java).apply {
+                                putExtra("user", chatItem.user)
+                                putExtra("source", "chat_history")
+                            }
+                            context.startActivity(intent)
                         }
-                        context.startActivity(intent)
-                    }
-                )
+                    )
+                }
             }
         }
     }

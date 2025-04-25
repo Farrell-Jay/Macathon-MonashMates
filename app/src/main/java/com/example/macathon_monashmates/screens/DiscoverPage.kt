@@ -228,6 +228,8 @@ fun DiscoverScreen() {
 
 @Composable
 fun MentorCard(mentor: Mentor, onClick: () -> Unit) {
+    val context = LocalContext.current
+    
     Card(
         modifier = Modifier
             .fillMaxWidth(),
@@ -286,7 +288,19 @@ fun MentorCard(mentor: Mentor, onClick: () -> Unit) {
             
             // View Profile Button
             IconButton(
-                onClick = { /* TODO: Handle view profile */ },
+                onClick = { 
+                    val intent = Intent(context, ChatPage::class.java).apply {
+                        putExtra("user", User(
+                            name = mentor.name,
+                            studentId = "12345678", // TODO: Replace with actual student ID
+                            email = "mentor@monash.edu", // TODO: Replace with actual email
+                            isMentor = true,
+                            subjects = mentor.subjects.split(", ").toList()
+                        ))
+                        putExtra("source", "discover")
+                    }
+                    context.startActivity(intent)
+                },
                 modifier = Modifier.padding(start = 8.dp)
             ) {
                 Icon(
@@ -301,6 +315,8 @@ fun MentorCard(mentor: Mentor, onClick: () -> Unit) {
 
 @Composable
 fun StudentCard(student: Student, onClick: () -> Unit) {
+    val context = LocalContext.current
+    
     Card(
         modifier = Modifier
             .fillMaxWidth(),
@@ -359,7 +375,19 @@ fun StudentCard(student: Student, onClick: () -> Unit) {
             
             // View Profile Button
             IconButton(
-                onClick = { /* TODO: Handle view profile */ },
+                onClick = { 
+                    val intent = Intent(context, ChatPage::class.java).apply {
+                        putExtra("user", User(
+                            name = student.name,
+                            studentId = "87654321", // TODO: Replace with actual student ID
+                            email = "student@monash.edu", // TODO: Replace with actual email
+                            isMentor = false,
+                            subjects = listOf(student.subject)
+                        ))
+                        putExtra("source", "discover")
+                    }
+                    context.startActivity(intent)
+                },
                 modifier = Modifier.padding(start = 8.dp)
             ) {
                 Icon(

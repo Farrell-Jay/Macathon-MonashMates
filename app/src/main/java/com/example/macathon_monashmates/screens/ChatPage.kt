@@ -19,9 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.macathon_monashmates.R
 import com.example.macathon_monashmates.managers.ChatHistoryManager
 import com.example.macathon_monashmates.managers.UserManager
 import com.example.macathon_monashmates.models.ChatMessage
@@ -32,15 +34,48 @@ import java.util.*
 class ChatPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val user = intent.getSerializableExtra("user") as User
         setContent {
-            ChatScreen(user)
+            MaterialTheme {
+                val user = intent.getSerializableExtra("user") as? User
+                val source = intent.getStringExtra("source")
+                
+                if (user != null) {
+                    ChatScreen(
+                        user = user,
+                        onBackClick = {
+                            when (source) {
+                                "chat_history" -> {
+                                    val intent = Intent(this, ChatHistoryPage::class.java)
+                                    startActivity(intent)
+                                    finish()
+                                }
+                                "discover" -> {
+                                    val intent = Intent(this, DiscoverPage::class.java)
+                                    startActivity(intent)
+                                    finish()
+                                }
+                                else -> {
+                                    val intent = Intent(this, HomePage::class.java)
+                                    startActivity(intent)
+                                    finish()
+                                }
+                            }
+                        }
+                    )
+                } else {
+                    // Handle error case
+                    Text("Error: No user data provided")
+                }
+            }
         }
     }
 }
 
 @Composable
-fun ChatScreen(user: User) {
+fun ChatScreen(
+    user: User,
+    onBackClick: () -> Unit
+) {
     var message by remember { mutableStateOf("") }
     val context = LocalContext.current
     val chatHistoryManager = remember { ChatHistoryManager(context) }
@@ -60,35 +95,28 @@ fun ChatScreen(user: User) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(Color.White)
     ) {
-        // Chat Header
+        // Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = { 
-                    val intent = Intent(context, ProfileViewPage::class.java).apply {
-                        putExtra("user", user)
-                    }
-                    context.startActivity(intent)
-                    (context as ComponentActivity).finish()
-                }
+                onClick = onBackClick
             ) {
                 Icon(
-                    imageVector = Icons.Default.ArrowBack,
+                    painter = painterResource(id = R.drawable.ic_back),
                     contentDescription = "Back"
                 )
             }
             
             Text(
                 text = user.name,
-                fontSize = 20.sp,
-                fontWeight = MaterialTheme.typography.titleLarge.fontWeight,
-                modifier = Modifier.padding(start = 8.dp)
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(start = 16.dp)
             )
         }
         

@@ -116,33 +116,34 @@ fun NewLoginScreen() {
         Button(
             onClick = {
                 val user = userManager.getUserByStudentId(studentId)
-                if (user != null && user.email == email) {
-                    // Login successful
+                if (user != null) {
                     userManager.setCurrentUser(user)
                     Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                     
-                    // Redirect to new page
-                    val intent = Intent(context, HomePage::class.java)
-                    context.startActivity(intent)
-                    (context as Activity).finish()
+                    // Check if we need to redirect to StudentInterestPage
+                    val activity = context as? ComponentActivity
+                    if (activity?.intent?.getBooleanExtra("REDIRECT_TO_INTEREST", false) == true &&
+                        activity.intent?.getStringExtra("STUDENT_ID") == studentId) {
+                        // Redirect to StudentInterestPage
+                        val interestIntent = Intent(context, StudentInterestPage::class.java)
+                        context.startActivity(interestIntent)
+                    } else {
+                        // Normal flow - redirect to HomePage
+                        val intent = Intent(context, HomePage::class.java)
+                        context.startActivity(intent)
+                    }
+                    (context as ComponentActivity).finish()
                 } else {
-                    Toast.makeText(context, "Invalid credentials. Please try again.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Invalid student ID!", Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF003B5C)
-            ),
-            enabled = studentId.isNotEmpty() && email.isNotEmpty()
+                .padding(top = 16.dp),
+            shape = RoundedCornerShape(8.dp),
+            enabled = studentId.isNotEmpty()
         ) {
-            Text(
-                text = "Login",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Login")
         }
         
         // Sign Up Link
