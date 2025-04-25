@@ -75,7 +75,7 @@ fun WelcomeScreen(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Image(
-                painter = painterResource(id = R.drawable.img),
+                painter = painterResource(id = R.drawable.monashmates),
                 contentDescription = "App Logo",
                 modifier = Modifier.size(400.dp)
             )
