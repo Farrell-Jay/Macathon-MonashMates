@@ -1,5 +1,6 @@
 package com.example.macathon_monashmates
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -9,8 +10,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -21,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.macathon_monashmates.screens.SignUpPage
 import com.example.macathon_monashmates.ui.theme.MacathonMonashMatesTheme
 
 class MainActivity : ComponentActivity() {
@@ -37,7 +38,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MacathonMonashMatesTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    WelcomeScreen(modifier = Modifier.padding(innerPadding))
+                    WelcomeScreenContent(modifier = Modifier.padding(innerPadding))
                 }
             }
         }
@@ -45,16 +46,13 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun WelcomeScreen(modifier: Modifier = Modifier) {
+private fun WelcomeScreenContent(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-
-    // Gradient background colors
     val gradientColors = listOf(
-        Color(0xFF6200EA), // Deep purple
-        Color(0xFF03DAC5)  // Teal
+        Color(0xFF003B5C),  // Darker shade of Monash Blue for gradient
+        Color(0xFF006DAE)   // Monash Blue
     )
 
-    // Animation state for button scaling
     var signUpPressed by remember { mutableStateOf(false) }
     var logInPressed by remember { mutableStateOf(false) }
     val signUpScale by animateFloatAsState(if (signUpPressed) 0.95f else 1f)
@@ -70,87 +68,160 @@ fun WelcomeScreen(modifier: Modifier = Modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 32.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.monashmates),
-                contentDescription = "App Logo",
-                modifier = Modifier.size(400.dp)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Welcome to Monash Mates!",
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White
-                ),
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Helping good students mentor others. Let’s get started.",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.9f)
-                ),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-            Spacer(modifier = Modifier.height(40.dp))
-            Button(
-                onClick = {
-                    Toast.makeText(context, "Sign Up clicked!", Toast.LENGTH_SHORT).show()
-                    // TODO: Navigate to signup screen
+            TopLogoSection()
+            MiddleContentSection(
+                signUpScale = signUpScale,
+                logInScale = logInScale,
+                onSignUpClick = {
+                    signUpPressed = true
+                    val intent = Intent(context, SignUpPage::class.java)
+                    context.startActivity(intent)
+                    signUpPressed = false
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .scale(signUpScale)
-                    .clip(RoundedCornerShape(12.dp)),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6200EA)
-                ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-            ) {
-                Text(
-                    text = "Sign Up",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            OutlinedButton(
-                onClick = {
+                onLogInClick = {
+                    logInPressed = true
                     Toast.makeText(context, "Log In clicked!", Toast.LENGTH_SHORT).show()
-                    // TODO: Navigate to login screen
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .scale(logInScale)
-                    .clip(RoundedCornerShape(12.dp)),
-                border = BorderStroke(1.dp, Color.White),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White
-                )
-            ) {
-                Text(
-                    text = "Log In",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                )
-            }
+                    logInPressed = false
+                }
+            )
+            BottomLogoSection()
         }
+    }
+}
+
+@Composable
+private fun TopLogoSection() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.monashmates),
+            contentDescription = "MonashMates Logo",
+            modifier = Modifier
+                .size(350.dp)
+                .padding(bottom = 20.dp)
+        )
+    }
+}
+
+@Composable
+private fun MiddleContentSection(
+    signUpScale: Float,
+    logInScale: Float,
+    onSignUpClick: () -> Unit,
+    onLogInClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 20.dp),
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Welcome to Monash Mates!",
+            style = MaterialTheme.typography.headlineLarge.copy(
+                fontSize = 32.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White
+            ),
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Helping good students mentor others. Let's get started.",
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White.copy(alpha = 0.9f)
+            ),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        Spacer(modifier = Modifier.height(40.dp))
+        SignUpButton(
+            scale = signUpScale,
+            onClick = onSignUpClick
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        LogInButton(
+            scale = logInScale,
+            onClick = onLogInClick
+        )
+    }
+}
+
+@Composable
+private fun SignUpButton(scale: Float, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(12.dp)),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF6200EA)
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+    ) {
+        Text(
+            text = "Sign Up",
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+        )
+    }
+}
+
+@Composable
+private fun LogInButton(scale: Float, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(12.dp)),
+        border = BorderStroke(1.dp, Color.White),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = Color.White
+        )
+    ) {
+        Text(
+            text = "Log In",
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        )
+    }
+}
+
+@Composable
+private fun BottomLogoSection() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.monash_image_no_background),
+            contentDescription = "Monash University Logo",
+            modifier = Modifier
+                .size(250.dp)
+                .padding(top = 16.dp),
+            colorFilter = ColorFilter.tint(Color.White)
+        )
     }
 }
 
@@ -158,6 +229,6 @@ fun WelcomeScreen(modifier: Modifier = Modifier) {
 @Composable
 fun WelcomeScreenPreview() {
     MacathonMonashMatesTheme {
-        WelcomeScreen()
+        WelcomeScreenContent()
     }
 }
