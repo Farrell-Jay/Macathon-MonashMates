@@ -166,5 +166,19 @@ fun NewLoginScreen() {
                 color = Color(0xFF003B5C)
             )
         }
+
+        // Debug Database View Button (for testing)
+        TextButton(
+            onClick = {
+                val intent = Intent(context, DebugDatabaseView::class.java)
+                context.startActivity(intent)
+            },
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            Text(
+                text = "Debug Database View",
+                color = Color.Gray
+            )
+        }
     }
 } 

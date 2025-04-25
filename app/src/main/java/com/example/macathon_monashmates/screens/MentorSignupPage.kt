@@ -2,6 +2,7 @@ package com.example.macathon_monashmates.screens
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,7 +28,9 @@ import com.example.macathon_monashmates.utils.SubjectReader
 import com.example.macathon_monashmates.utils.Subject
 import com.example.macathon_monashmates.models.User
 import com.example.macathon_monashmates.managers.UserManager
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @OptIn(ExperimentalLayoutApi::class)
 class MentorSignupPage : ComponentActivity() {
@@ -53,6 +56,7 @@ fun MentorSignupScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val userManager = remember { UserManager(context) }
+    val db = remember { FirebaseFirestore.getInstance() }
     
     LaunchedEffect(Unit) {
         scope.launch {
@@ -121,26 +125,71 @@ fun MentorSignupScreen() {
             item {
                 Button(
                     onClick = { 
-                        // Create new user
-                        val user = User(
-                            name = fullName,
-                            studentId = studentId,
-                            email = email,
-                            isMentor = true,
-                            subjects = emptyList() // Will be set in expertise page
+                        // Generate unique ID for the user
+                        val userId = UUID.randomUUID().toString()
+                        
+                        // Create basic user document
+                        val userDoc = hashMapOf(
+                            "uid" to userId,
+                            "name" to fullName,
+                            "studentId" to studentId,
+                            "email" to email,
+                            "isMentor" to true
                         )
                         
-                        // Save user
-                        userManager.saveUser(user)
-                        userManager.setCurrentUser(user)
+                        // Create basic mentor profile
+                        val mentorDoc = hashMapOf(
+                            "uid" to userId,
+                            "name" to fullName,
+                            "studentId" to studentId,
+                            "email" to email,
+                            "expertise" to listOf<String>(),
+                            "unitsTaken" to listOf<String>(),
+                            "availability" to listOf<Map<String, Any>>(),
+                            "bio" to ""
+                        )
                         
-                        // Show success message
-                        Toast.makeText(context, "Sign up successful! Please login.", Toast.LENGTH_SHORT).show()
-                        
-                        // Redirect to new login page
-                        val intent = Intent(context, NewLoginPage::class.java)
-                        context.startActivity(intent)
-                        (context as ComponentActivity).finish()
+                        // Save to users collection
+                        db.collection("users").document(userId)
+                            .set(userDoc)
+                            .addOnSuccessListener {
+                                Log.d("MentorSignup", "User document created successfully with data: $userDoc")
+                                
+                                // Save to mentors collection
+                                db.collection("mentors").document(userId)
+                                    .set(mentorDoc)
+                                    .addOnSuccessListener {
+                                        Log.d("MentorSignup", "Mentor profile created successfully with data: $mentorDoc")
+                                        
+                                        // Create and save local User object
+                                        val user = User(
+                                            name = fullName,
+                                            studentId = studentId,
+                                            email = email,
+                                            isMentor = true,
+                                            subjects = emptyList()
+                                        )
+                                        userManager.saveUser(user)
+                                        userManager.setCurrentUser(user)
+                                        
+                                        Toast.makeText(context, "Sign up successful! Complete your profile.", Toast.LENGTH_SHORT).show()
+                                        
+                                        val intent = Intent(context, MentorExpertisePage::class.java)
+                                        intent.putExtra("userId", userId)
+                                        context.startActivity(intent)
+                                        (context as ComponentActivity).finish()
+                                    }
+                                    .addOnFailureListener { e ->
+                                        Log.e("MentorSignup", "Error creating mentor profile", e)
+                                        // Cleanup if mentor profile creation fails
+                                        db.collection("users").document(userId).delete()
+                                        Toast.makeText(context, "Error creating mentor profile: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e("MentorSignup", "Error creating user", e)
+                                Toast.makeText(context, "Error creating user: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
                     },
                     modifier = Modifier
                         .fillMaxWidth()

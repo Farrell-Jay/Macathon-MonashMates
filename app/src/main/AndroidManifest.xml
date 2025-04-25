@@ -81,6 +81,14 @@
             android:name=".screens.NewLoginPage"
             android:exported="false"
             android:theme="@style/Theme.MacathonMonashMates" />
+        <activity
+            android:name=".screens.DebugDatabaseView"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

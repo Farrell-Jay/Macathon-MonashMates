@@ -30,26 +30,92 @@ import com.example.macathon_monashmates.utils.MonashBlue
 import com.example.macathon_monashmates.utils.MonashLightBlue
 import com.example.macathon_monashmates.utils.MonashDarkBlue
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.lifecycleScope
+import com.example.macathon_monashmates.data.models.StudentProfile
+import com.example.macathon_monashmates.data.repository.FirebaseRepository
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
+import com.google.firebase.firestore.FirebaseFirestore
+import android.util.Log
 
 class StudentInterestPage : ComponentActivity() {
+    private val repository = FirebaseRepository()
+    private val snackbarHostState = SnackbarHostState()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            StudentInterestScreen()
+            var bio by rememberSaveable { mutableStateOf("") }
+            var areasOfInterest by rememberSaveable { mutableStateOf(listOf<String>()) }
+            var currentUnits by rememberSaveable { mutableStateOf(listOf<String>()) }
+            var academicGoals by rememberSaveable { mutableStateOf("") }
+            
+            // Load existing profile if available
+            LaunchedEffect(Unit) {
+                repository.getCurrentUser()?.let { user ->
+                    repository.getStudentProfile(user.uid)?.let { profile ->
+                        bio = profile.bio
+                        areasOfInterest = profile.areasOfInterest
+                        currentUnits = profile.currentUnits
+                        academicGoals = profile.academicGoals
+                    }
+                }
+            }
+
+            StudentInterestScreen(
+                bio = bio,
+                onBioChange = { bio = it },
+                areasOfInterest = areasOfInterest,
+                onAreasOfInterestChange = { areasOfInterest = it },
+                currentUnits = currentUnits,
+                onCurrentUnitsChange = { currentUnits = it },
+                academicGoals = academicGoals,
+                onAcademicGoalsChange = { academicGoals = it },
+                onSaveProfile = {
+                    lifecycleScope.launch {
+                        try {
+                            repository.getCurrentUser()?.let { user ->
+                                val profile = StudentProfile(
+                                    uid = user.uid,
+                                    bio = bio,
+                                    areasOfInterest = areasOfInterest,
+                                    currentUnits = currentUnits,
+                                    academicGoals = academicGoals
+                                )
+                                repository.createOrUpdateStudentProfile(profile)
+                                snackbarHostState.showSnackbar("Profile saved successfully!")
+                            }
+                        } catch (e: Exception) {
+                            snackbarHostState.showSnackbar("Failed to save profile: ${e.message}")
+                        }
+                    }
+                }
+            )
+            
+            SnackbarHost(hostState = snackbarHostState)
         }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun StudentInterestScreen() {
+fun StudentInterestScreen(
+    bio: String,
+    onBioChange: (String) -> Unit,
+    areasOfInterest: List<String>,
+    onAreasOfInterestChange: (List<String>) -> Unit,
+    currentUnits: List<String>,
+    onCurrentUnitsChange: (List<String>) -> Unit,
+    academicGoals: String,
+    onAcademicGoalsChange: (String) -> Unit,
+    onSaveProfile: () -> Unit
+) {
     val subjects = remember { mutableStateListOf<Subject>() }
     var selectedSubjects by remember { mutableStateOf(setOf<Subject>()) }
     var selectedMajors by remember { mutableStateOf(setOf<String>()) }
     var showSubjectDialog by remember { mutableStateOf(false) }
     var showMajorDialog by remember { mutableStateOf(false) }
-    var academicGoals by remember { mutableStateOf("") }
-    var bio by remember { mutableStateOf("") }
     
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -143,7 +209,7 @@ fun StudentInterestScreen() {
                 
                 OutlinedTextField(
                     value = bio,
-                    onValueChange = { bio = it },
+                    onValueChange = onBioChange,
                     label = { Text("Short Bio") },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("Tell us about yourself and your learning style") },
@@ -257,7 +323,7 @@ fun StudentInterestScreen() {
                 
                 OutlinedTextField(
                     value = academicGoals,
-                    onValueChange = { academicGoals = it },
+                    onValueChange = onAcademicGoalsChange,
                     label = { Text("Your Academic Goals") },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("Describe your academic goals and what you hope to achieve") },
@@ -276,29 +342,36 @@ fun StudentInterestScreen() {
                 Button(
                     onClick = {
                         if (currentUser != null) {
-                            // Update user with new information
-                            val updatedUser = currentUser.copy(
-                                subjects = selectedSubjects.map { it.toString() }
+                            val db = FirebaseFirestore.getInstance()
+                            
+                            // Create student profile document
+                            val studentDoc = hashMapOf(
+                                "uid" to currentUser.studentId,
+                                "name" to currentUser.name,
+                                "email" to currentUser.email,
+                                "bio" to bio,
+                                "majors" to selectedMajors.toList(),
+                                "units" to selectedSubjects.map { it.toString() },
+                                "academicGoals" to academicGoals
                             )
                             
-                            // Save updated user
-                            userManager.saveUser(updatedUser)
-                            userManager.setCurrentUser(updatedUser)
-                            
-                            // Save additional information in SharedPreferences
-                            val sharedPreferences = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
-                            val editor = sharedPreferences.edit()
-                            editor.putString("${currentUser.studentId}_bio", bio)
-                            editor.putString("${currentUser.studentId}_academicGoals", academicGoals)
-                            editor.putString("${currentUser.studentId}_majors", selectedMajors.joinToString(","))
-                            editor.apply()
-                            
-                            Toast.makeText(context, "Profile updated successfully!", Toast.LENGTH_SHORT).show()
-                            
-                            // Redirect to home page
-                            val intent = Intent(context, HomePage::class.java)
-                            context.startActivity(intent)
-                            (context as ComponentActivity).finish()
+                            // Save to Firestore
+                            db.collection("students")
+                                .document(currentUser.studentId)
+                                .set(studentDoc)
+                                .addOnSuccessListener {
+                                    Log.d("StudentInterest", "Student profile saved successfully with data: $studentDoc")
+                                    Toast.makeText(context, "Profile updated successfully!", Toast.LENGTH_SHORT).show()
+                                    
+                                    // Redirect to home page
+                                    val intent = Intent(context, HomePage::class.java)
+                                    context.startActivity(intent)
+                                    (context as ComponentActivity).finish()
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("StudentInterest", "Error saving student profile", e)
+                                    Toast.makeText(context, "Error updating profile: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
                         }
                     },
                     modifier = Modifier
@@ -308,10 +381,7 @@ fun StudentInterestScreen() {
                         containerColor = MonashBlue
                     ),
                     shape = RoundedCornerShape(8.dp),
-                    enabled = selectedSubjects.isNotEmpty() && 
-                             selectedMajors.isNotEmpty() && 
-                             academicGoals.isNotEmpty() && 
-                             bio.isNotEmpty()
+                    enabled = selectedSubjects.isNotEmpty() && bio.isNotEmpty() && selectedMajors.isNotEmpty() && academicGoals.isNotEmpty()
                 ) {
                     Text("Complete Profile")
                 }

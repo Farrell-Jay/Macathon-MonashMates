@@ -36,32 +36,94 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import androidx.compose.ui.graphics.Color
-
-data class TimeSlot(
-    val dayOfWeek: String,
-    val startTime: LocalTime,
-    val endTime: LocalTime
-)
+import com.example.macathon_monashmates.data.models.MentorProfile
+import com.example.macathon_monashmates.data.models.TimeSlot
+import com.example.macathon_monashmates.data.repository.FirebaseRepository
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.lifecycleScope
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
+import com.google.firebase.firestore.FirebaseFirestore
+import android.util.Log
 
 class MentorExpertisePage : ComponentActivity() {
+    private val repository = FirebaseRepository()
+    private val snackbarHostState = SnackbarHostState()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MentorExpertiseScreen()
+            var bio by rememberSaveable { mutableStateOf("") }
+            var areasOfExpertise by rememberSaveable { mutableStateOf(listOf<String>()) }
+            var unitsTaken by rememberSaveable { mutableStateOf(listOf<String>()) }
+            var availability by rememberSaveable { mutableStateOf(listOf<TimeSlot>()) }
+            
+            // Load existing profile if available
+            LaunchedEffect(Unit) {
+                repository.getCurrentUser()?.let { user ->
+                    repository.getMentorProfile(user.uid)?.let { profile ->
+                        bio = profile.bio
+                        areasOfExpertise = profile.areasOfExpertise
+                        unitsTaken = profile.unitsTaken
+                        availability = profile.availability
+                    }
+                }
+            }
+
+            MentorExpertiseScreen(
+                bio = bio,
+                onBioChange = { bio = it },
+                areasOfExpertise = areasOfExpertise,
+                onAreasOfExpertiseChange = { areasOfExpertise = it },
+                unitsTaken = unitsTaken,
+                onUnitsTakenChange = { unitsTaken = it },
+                availability = availability,
+                onAvailabilityChange = { availability = it },
+                onSaveProfile = {
+                    lifecycleScope.launch {
+                        try {
+                            repository.getCurrentUser()?.let { user ->
+                                val profile = MentorProfile(
+                                    uid = user.uid,
+                                    bio = bio,
+                                    areasOfExpertise = areasOfExpertise,
+                                    unitsTaken = unitsTaken,
+                                    availability = availability
+                                )
+                                repository.createOrUpdateMentorProfile(profile)
+                                snackbarHostState.showSnackbar("Profile saved successfully!")
+                            }
+                        } catch (e: Exception) {
+                            snackbarHostState.showSnackbar("Failed to save profile: ${e.message}")
+                        }
+                    }
+                }
+            )
+            
+            SnackbarHost(hostState = snackbarHostState)
         }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun MentorExpertiseScreen() {
+fun MentorExpertiseScreen(
+    bio: String,
+    onBioChange: (String) -> Unit,
+    areasOfExpertise: List<String>,
+    onAreasOfExpertiseChange: (List<String>) -> Unit,
+    unitsTaken: List<String>,
+    onUnitsTakenChange: (List<String>) -> Unit,
+    availability: List<TimeSlot>,
+    onAvailabilityChange: (List<TimeSlot>) -> Unit,
+    onSaveProfile: () -> Unit
+) {
     val subjects = remember { mutableStateListOf<Subject>() }
     var selectedSubjects by remember { mutableStateOf(setOf<Subject>()) }
     var selectedExpertiseAreas by remember { mutableStateOf(setOf<String>()) }
     var showSubjectDialog by remember { mutableStateOf(false) }
     var showExpertiseDialog by remember { mutableStateOf(false) }
     var expertiseLevels by remember { mutableStateOf(mapOf<String, String>()) }
-    var bio by remember { mutableStateOf("") }
     var timeSlots by remember { mutableStateOf(listOf<TimeSlot>()) }
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDay by remember { mutableStateOf("Monday") }
@@ -161,7 +223,7 @@ fun MentorExpertiseScreen() {
                 
                 OutlinedTextField(
                     value = bio,
-                    onValueChange = { bio = it },
+                    onValueChange = onBioChange,
                     label = { Text("Short Bio") },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("Tell students about yourself and your teaching style") },
@@ -411,13 +473,22 @@ fun MentorExpertiseScreen() {
                     ) {
                         Column {
                             Text(
-                                text = slot.dayOfWeek,
+                                text = when(slot.dayOfWeek) {
+                                    1 -> "Monday"
+                                    2 -> "Tuesday"
+                                    3 -> "Wednesday"
+                                    4 -> "Thursday"
+                                    5 -> "Friday"
+                                    6 -> "Saturday"
+                                    7 -> "Sunday"
+                                    else -> "Unknown"
+                                },
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MonashBlue
                             )
                             Text(
-                                text = "${slot.startTime.format(DateTimeFormatter.ofPattern("h:mm a"))} - ${slot.endTime.format(DateTimeFormatter.ofPattern("h:mm a"))}",
+                                text = "${slot.startTime} - ${slot.endTime}",
                                 fontSize = 14.sp,
                                 color = Color.DarkGray
                             )
@@ -442,52 +513,42 @@ fun MentorExpertiseScreen() {
                 Button(
                     onClick = {
                         if (currentUser != null) {
-                            // Update user with new information
-                            val updatedUser = currentUser.copy(
-                                subjects = selectedSubjects.map { it.toString() }
+                            val db = FirebaseFirestore.getInstance()
+                            
+                            // Create mentor profile document
+                            val mentorDoc = hashMapOf(
+                                "uid" to currentUser.studentId,
+                                "name" to currentUser.name,
+                                "email" to currentUser.email,
+                                "bio" to bio,
+                                "expertise" to selectedExpertiseAreas.toList(),
+                                "unitsTaken" to selectedSubjects.map { it.toString() },
+                                "availability" to timeSlots.map { slot ->
+                                    hashMapOf(
+                                        "dayOfWeek" to slot.dayOfWeek,
+                                        "startTime" to slot.startTime,
+                                        "endTime" to slot.endTime
+                                    )
+                                }
                             )
                             
-                            // Save updated user
-                            userManager.saveUser(updatedUser)
-                            userManager.setCurrentUser(updatedUser)
-                            
-                            // Save additional information in SharedPreferences
-                            val sharedPreferences = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
-                            val editor = sharedPreferences.edit()
-                            
-                            // Debug logging
-                            println("Debug - Saving expertise areas: $selectedExpertiseAreas")
-                            println("Debug - Saving expertise levels: $expertiseLevels")
-                            println("Debug - Saving subjects: $selectedSubjects")
-                            
-                            editor.putString("${currentUser.studentId}_bio", bio)
-                            
-                            // Save time slots
-                            val timeSlotString = timeSlots.joinToString("|||") { slot -> 
-                                "${slot.dayOfWeek}|||${slot.startTime.format(DateTimeFormatter.ofPattern("h:mm a"))}|||${slot.endTime.format(DateTimeFormatter.ofPattern("h:mm a"))}" 
-                            }
-                            editor.putString("${currentUser.studentId}_timeSlots", timeSlotString)
-                            
-                            // Save expertise areas and levels separately
-                            editor.putString("${currentUser.studentId}_expertiseAreas", selectedExpertiseAreas.joinToString("|||"))
-                            editor.putString("${currentUser.studentId}_expertiseLevels", expertiseLevels.entries.joinToString("|||") { "${it.key}::${it.value}" })
-                            
-                            // Save subjects
-                            editor.putString("${currentUser.studentId}_subjects", selectedSubjects.joinToString("|||") { it.toString() })
-                            
-                            editor.apply()
-                            
-                            // Debug - Verify saved data
-                            println("Debug - Verified saved expertise areas: ${sharedPreferences.getString("${currentUser.studentId}_expertiseAreas", null)}")
-                            println("Debug - Verified saved expertise levels: ${sharedPreferences.getString("${currentUser.studentId}_expertiseLevels", null)}")
-                            println("Debug - Verified saved subjects: ${sharedPreferences.getString("${currentUser.studentId}_subjects", null)}")
-                            
-                            Toast.makeText(context, "Profile updated successfully!", Toast.LENGTH_SHORT).show()
-                            
-                            // Redirect to home page
-                            val intent = Intent(context, HomePage::class.java)
-                            context.startActivity(intent)
-                            (context as ComponentActivity).finish()
+                            // Save to Firestore
+                            db.collection("mentors")
+                                .document(currentUser.studentId)
+                                .set(mentorDoc)
+                                .addOnSuccessListener {
+                                    Log.d("MentorExpertise", "Mentor profile saved successfully with data: $mentorDoc")
+                                    Toast.makeText(context, "Profile updated successfully!", Toast.LENGTH_SHORT).show()
+                                    
+                                    // Redirect to home page
+                                    val intent = Intent(context, HomePage::class.java)
+                                    context.startActivity(intent)
+                                    (context as ComponentActivity).finish()
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("MentorExpertise", "Error saving mentor profile", e)
+                                    Toast.makeText(context, "Error updating profile: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
                         }
                     },
                     modifier = Modifier
@@ -598,10 +659,21 @@ fun MentorExpertiseScreen() {
                                 selectedEndTime = tempEndTime
                                 
                                 // Create and add the new time slot
+                                val dayNumber = when(selectedDay) {
+                                    "Monday" -> 1
+                                    "Tuesday" -> 2
+                                    "Wednesday" -> 3
+                                    "Thursday" -> 4
+                                    "Friday" -> 5
+                                    "Saturday" -> 6
+                                    "Sunday" -> 7
+                                    else -> 1
+                                }
+                                
                                 val newTimeSlot = TimeSlot(
-                                    dayOfWeek = selectedDay,
-                                    startTime = selectedStartTime,
-                                    endTime = selectedEndTime
+                                    dayOfWeek = dayNumber,
+                                    startTime = selectedStartTime.format(DateTimeFormatter.ofPattern("HH:mm")),
+                                    endTime = selectedEndTime.format(DateTimeFormatter.ofPattern("HH:mm"))
                                 )
                                 
                                 println("Debug - Adding new time slot: $selectedDay ${selectedStartTime.format(DateTimeFormatter.ofPattern("h:mm a"))} - ${selectedEndTime.format(DateTimeFormatter.ofPattern("h:mm a"))}")

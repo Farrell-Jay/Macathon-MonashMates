@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "168438065483",
-    "project_id": "monash-mates-1c1ed",
-    "storage_bucket": "monash-mates-1c1ed.firebasestorage.app"
+    "project_number": "635575543356",
+    "project_id": "monashmates-f2b46",
+    "storage_bucket": "monashmates-f2b46.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:168438065483:android:0182975b51545d9befe0ce",
+        "mobilesdk_app_id": "1:635575543356:android:bf0e3cbd5781df58038539",
         "android_client_info": {
-          "package_name": "Monash.Mates"
+          "package_name": "com.example.macathon_monashmates"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC6QmanDaSsfNBwmwSv66ffCd-dEiBRlts"
+          "current_key": "AIzaSyA64dIQ2a5nrW8zz53UpxMMok8xF5MXgXQ"
         }
       ],
       "services": {
