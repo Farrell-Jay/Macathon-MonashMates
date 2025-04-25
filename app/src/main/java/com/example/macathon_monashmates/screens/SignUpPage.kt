@@ -1,5 +1,6 @@
 package com.example.macathon_monashmates.screens
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,7 +13,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -79,7 +79,11 @@ fun SignUpScreen() {
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(8.dp),
+            onClick = {
+                val intent = Intent(context, MentorSignupPage::class.java)
+                context.startActivity(intent)
+            }
         ) {
             Column(
                 modifier = Modifier
@@ -114,7 +118,11 @@ fun SignUpScreen() {
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(8.dp),
+            onClick = {
+                val intent = Intent(context, StudentSignupPage::class.java)
+                context.startActivity(intent)
+            }
         ) {
             Column(
                 modifier = Modifier

@@ -15,7 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-class ProfilePage : ComponentActivity() {
+class HomePage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -52,16 +52,16 @@ class ProfilePage : ComponentActivity() {
                     scrim = Color.Black.copy(alpha = 0.5f)
                 )
             ) {
-                ProfileScreen()
+                HomeScreen()
             }
         }
     }
 }
 
 @Composable
-fun ProfileScreen() {
+fun HomeScreen() {
     Scaffold(
-        bottomBar = { BottomNavigationBar(currentPage = 3) }
+        bottomBar = { BottomNavigationBar(currentPage = 0) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -72,13 +72,12 @@ fun ProfileScreen() {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Profile Page",
+                text = "Home Page",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF002A5C)
             )
-            // Add more profile page content here
+            // Add more home page content here
         }
     }
-}
-
+} 
