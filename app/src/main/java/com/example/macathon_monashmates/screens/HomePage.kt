@@ -1,5 +1,6 @@
 package com.example.macathon_monashmates.screens
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,9 +12,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 
 class HomePage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,16 +57,104 @@ class HomePage : ComponentActivity() {
                     scrim = Color.Black.copy(alpha = 0.5f)
                 )
             ) {
-                HomeScreen()
+                MainScreen()
             }
         }
     }
 }
 
 @Composable
-fun HomeScreen() {
+fun MainScreen() {
+    val navController = rememberNavController()
+    val context = LocalContext.current
+    
     Scaffold(
-        bottomBar = { BottomNavigationBar(currentPage = 0) }
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Home,
+                            contentDescription = "Home"
+                        )
+                    },
+                    label = { Text("Home") },
+                    selected = true,
+                    onClick = { 
+                        // Already on Home page
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFF009AC7),
+                        selectedTextColor = Color(0xFF009AC7),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+                
+                NavigationBarItem(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Discover"
+                        )
+                    },
+                    label = { Text("Discover") },
+                    selected = false,
+                    onClick = { 
+                        val intent = Intent(context, DiscoverPage::class.java)
+                        context.startActivity(intent)
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFF009AC7),
+                        selectedTextColor = Color(0xFF009AC7),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+                
+                NavigationBarItem(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Chat,
+                            contentDescription = "Chat"
+                        )
+                    },
+                    label = { Text("Chat") },
+                    selected = false,
+                    onClick = { 
+                        val intent = Intent(context, ChatHistoryPage::class.java)
+                        context.startActivity(intent)
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFF009AC7),
+                        selectedTextColor = Color(0xFF009AC7),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+                
+                NavigationBarItem(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile"
+                        )
+                    },
+                    label = { Text("Profile") },
+                    selected = false,
+                    onClick = { 
+                        val intent = Intent(context, ProfilePage::class.java)
+                        context.startActivity(intent)
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFF009AC7),
+                        selectedTextColor = Color(0xFF009AC7),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+            }
+        }
     ) { padding ->
         Column(
             modifier = Modifier

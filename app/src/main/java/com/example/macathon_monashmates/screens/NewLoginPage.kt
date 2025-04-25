@@ -27,6 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.macathon_monashmates.R
 import com.example.macathon_monashmates.managers.UserManager
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreSettings
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 
 class NewLoginPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,9 +45,18 @@ class NewLoginPage : ComponentActivity() {
 fun NewLoginScreen() {
     var studentId by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     val userManager = remember { UserManager(context) }
+    val firestore = remember { Firebase.firestore }
+    
+    // Email validation function
+    fun isValidEmail(email: String): Boolean {
+        val emailRegex = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
+        return emailRegex.matches(email)
+    }
     
     Column(
         modifier = Modifier
@@ -80,7 +93,10 @@ fun NewLoginScreen() {
         // Login Form
         OutlinedTextField(
             value = studentId,
-            onValueChange = { studentId = it },
+            onValueChange = { 
+                studentId = it
+                errorMessage = null
+            },
             label = { Text("Student ID") },
             leadingIcon = {
                 Icon(
@@ -89,6 +105,7 @@ fun NewLoginScreen() {
                     tint = Color(0xFF003B5C)
                 )
             },
+            isError = errorMessage != null,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
@@ -97,7 +114,10 @@ fun NewLoginScreen() {
         
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { 
+                email = it
+                errorMessage = null
+            },
             label = { Text("Email") },
             leadingIcon = {
                 Icon(
@@ -105,6 +125,15 @@ fun NewLoginScreen() {
                     contentDescription = "Email",
                     tint = Color(0xFF003B5C)
                 )
+            },
+            isError = errorMessage != null,
+            supportingText = {
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -115,41 +144,93 @@ fun NewLoginScreen() {
         // Login Button
         Button(
             onClick = {
-                val user = userManager.getUserByStudentId(studentId)
-                if (user != null) {
-                    userManager.setCurrentUser(user)
-                    Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
-                    
-                    val activity = context as? ComponentActivity
-                    if (activity?.intent?.getBooleanExtra("REDIRECT_TO_INTEREST", false) == true &&
-                        activity.intent?.getStringExtra("STUDENT_ID") == studentId) {
-                        // Coming from student signup - redirect to StudentInterestPage
-                        val interestIntent = Intent(context, StudentInterestPage::class.java)
-                        context.startActivity(interestIntent)
-                    } else {
-                        // Normal login flow
-                        if (user.isMentor) {
-                            // Mentor - redirect to MentorExpertisePage
-                            val mentorIntent = Intent(context, MentorExpertisePage::class.java)
-                            context.startActivity(mentorIntent)
+                // Validate that both fields are filled
+                if (studentId.isEmpty() || email.isEmpty()) {
+                    errorMessage = "Please enter both Student ID and Email"
+                    return@Button
+                }
+                
+                // Validate email format
+                if (!isValidEmail(email)) {
+                    errorMessage = "Please enter a valid email address"
+                    return@Button
+                }
+                
+                isLoading = true
+                
+                // First try mentors collection
+                Toast.makeText(context, "Checking mentor collection for ID: $studentId", Toast.LENGTH_SHORT).show()
+                firestore.collection("mentors")
+                    .document(studentId)
+                    .get()
+                    .addOnSuccessListener { mentorDoc ->
+                        if (mentorDoc.exists()) {
+                            val mentorEmail = mentorDoc.getString("email")
+                            val mentorUid = mentorDoc.getString("uid")
+                            
+                            // Check if studentId matches uid
+                            if (mentorUid != studentId) {
+                                Toast.makeText(context, "Mentor UID mismatch: $mentorUid vs $studentId", Toast.LENGTH_SHORT).show()
+                                errorMessage = "Invalid Student ID"
+                                isLoading = false
+                                return@addOnSuccessListener
+                            }
+                            
+                            // Check if email matches exactly
+                            if (mentorEmail != email) {
+                                errorMessage = "Invalid Email"
+                                isLoading = false
+                                return@addOnSuccessListener
+                            }
+                            
+                            // Mentor login successful
+                            val user = userManager.getUserByStudentId(studentId)
+                            if (user != null) {
+                                userManager.setCurrentUser(user)
+                                Toast.makeText(context, "Login successful! Redirecting to Home Page", Toast.LENGTH_SHORT).show()
+                                val intent = Intent(context, HomePage::class.java)
+                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                context.startActivity(intent)
+                                (context as? Activity)?.finish()
+                            } else {
+                                errorMessage = "Invalid Student ID or Email"
+                                isLoading = false
+                            }
                         } else {
-                            // Student - redirect to HomePage
-                            val intent = Intent(context, HomePage::class.java)
-                            context.startActivity(intent)
+                            // If not found in mentors, try students collection
+                            checkStudentCollection(
+                                studentId = studentId,
+                                email = email,
+                                context = context,
+                                userManager = userManager,
+                                onError = { error ->
+                                    errorMessage = error
+                                },
+                                onLoadingChange = { loading ->
+                                    isLoading = loading
+                                }
+                            )
                         }
                     }
-                    (context as ComponentActivity).finish()
-                } else {
-                    Toast.makeText(context, "Invalid student ID!", Toast.LENGTH_SHORT).show()
-                }
+                    .addOnFailureListener { _ ->
+                        isLoading = false
+                        errorMessage = "Error connecting to server. Please try again."
+                    }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 16.dp),
             shape = RoundedCornerShape(8.dp),
-            enabled = studentId.isNotEmpty()
+            enabled = !isLoading && studentId.isNotEmpty() && email.isNotEmpty()
         ) {
-            Text("Login")
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Text("Login")
+            }
         }
         
         // Sign Up Link
@@ -166,19 +247,59 @@ fun NewLoginScreen() {
                 color = Color(0xFF003B5C)
             )
         }
-
-        // Debug Database View Button (for testing)
-        TextButton(
-            onClick = {
-                val intent = Intent(context, DebugDatabaseView::class.java)
-                context.startActivity(intent)
-            },
-            modifier = Modifier.padding(top = 8.dp)
-        ) {
-            Text(
-                text = "Debug Database View",
-                color = Color.Gray
-            )
-        }
     }
+}
+
+// Helper function to check students collection
+private fun checkStudentCollection(
+    studentId: String,
+    email: String,
+    context: android.content.Context,
+    userManager: UserManager,
+    onError: (String) -> Unit,
+    onLoadingChange: (Boolean) -> Unit
+) {
+    Toast.makeText(context, "Checking student collection for ID: $studentId", Toast.LENGTH_SHORT).show()
+    Firebase.firestore.collection("students")
+        .document(studentId)
+        .get()
+        .addOnSuccessListener { studentDoc ->
+            onLoadingChange(false)
+            if (studentDoc.exists()) {
+                val studentEmail = studentDoc.getString("email")
+                val studentUid = studentDoc.getString("uid")
+                
+                // Check if studentId matches uid
+                if (studentUid != studentId) {
+                    Toast.makeText(context, "Student UID mismatch: $studentUid vs $studentId", Toast.LENGTH_SHORT).show()
+                    onError("Invalid Student ID")
+                    return@addOnSuccessListener
+                }
+                
+                // Check if email matches exactly
+                if (studentEmail != email) {
+                    onError("Invalid Email")
+                    return@addOnSuccessListener
+                }
+                
+                // Student login successful
+                val user = userManager.getUserByStudentId(studentId)
+                if (user != null) {
+                    userManager.setCurrentUser(user)
+                    Toast.makeText(context, "Login successful! Redirecting to Home Page", Toast.LENGTH_SHORT).show()
+                    val intent = Intent(context, HomePage::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    context.startActivity(intent)
+                    (context as? Activity)?.finish()
+                } else {
+                    onError("Invalid Student ID or Email")
+                }
+            } else {
+                onError("Invalid Student ID or Email")
+            }
+        }
+        .addOnFailureListener { _ ->
+            onLoadingChange(false)
+            onError("Error connecting to server. Please try again.")
+        }
 } 

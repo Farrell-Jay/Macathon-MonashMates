@@ -488,7 +488,11 @@ fun BottomNavigationBar(currentPage: Int) {
             },
             label = { Text("Home") },
             selected = currentPage == 0,
-            onClick = { /* TODO */ },
+            onClick = { 
+                val intent = Intent(context, HomePage::class.java)
+                context.startActivity(intent)
+                (context as ComponentActivity).finish()
+            },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF009AC7),
                 selectedTextColor = Color(0xFF009AC7),
@@ -506,7 +510,9 @@ fun BottomNavigationBar(currentPage: Int) {
             },
             label = { Text("Discover") },
             selected = currentPage == 1,
-            onClick = { /* Already on Discover page */ },
+            onClick = { 
+                // Already on Discover page, do nothing
+            },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF009AC7),
                 selectedTextColor = Color(0xFF009AC7),

@@ -46,8 +46,11 @@ class MentorSignupPage : ComponentActivity() {
 @Composable
 fun MentorSignupScreen() {
     var fullName by remember { mutableStateOf("") }
-    var studentId by remember { mutableStateOf("") }
+    var mentorId by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
+    var fullNameError by remember { mutableStateOf<String?>(null) }
+    var mentorIdError by remember { mutableStateOf<String?>(null) }
+    var emailError by remember { mutableStateOf<String?>(null) }
     
     val subjects = remember { mutableStateListOf<Subject>() }
     var selectedSubjects by remember { mutableStateOf(setOf<Subject>()) }
@@ -57,6 +60,30 @@ fun MentorSignupScreen() {
     val scope = rememberCoroutineScope()
     val userManager = remember { UserManager(context) }
     val db = remember { FirebaseFirestore.getInstance() }
+    
+    // Function to validate full name
+    fun validateFullName(name: String): Boolean {
+        return name.matches(Regex("^[a-zA-Z\\s]*$"))
+    }
+    
+    // Function to validate mentor ID
+    fun validateMentorId(id: String): Boolean {
+        return id.matches(Regex("^\\d{8}$"))
+    }
+    
+    // Function to get mentor ID error message
+    fun getMentorIdError(id: String): String? {
+        return when {
+            !id.matches(Regex("^\\d*$")) -> "Numbers only"
+            id.length < 8 -> "${8 - id.length} numbers remaining"
+            else -> null
+        }
+    }
+    
+    // Function to validate Monash email
+    fun validateMonashEmail(email: String): Boolean {
+        return email.endsWith("@student.monash.edu") || email.endsWith("@monash.edu")
+    }
     
     LaunchedEffect(Unit) {
         scope.launch {
@@ -98,17 +125,45 @@ fun MentorSignupScreen() {
             item {
                 OutlinedTextField(
                     value = fullName,
-                    onValueChange = { fullName = it },
+                    onValueChange = { 
+                        fullName = it
+                        fullNameError = if (it.isNotEmpty() && !validateFullName(it)) {
+                            "Alphabets Only"
+                        } else {
+                            null
+                        }
+                    },
                     label = { Text("Full Name") },
+                    isError = fullNameError != null,
+                    supportingText = {
+                        if (fullNameError != null) {
+                            Text(
+                                text = fullNameError!!,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
             
             item {
                 OutlinedTextField(
-                    value = studentId,
-                    onValueChange = { studentId = it },
-                    label = { Text("Student ID") },
+                    value = mentorId,
+                    onValueChange = { 
+                        mentorId = it
+                        mentorIdError = getMentorIdError(it)
+                    },
+                    label = { Text("Mentor ID") },
+                    isError = mentorIdError != null,
+                    supportingText = {
+                        if (mentorIdError != null) {
+                            Text(
+                                text = mentorIdError!!,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -116,8 +171,24 @@ fun MentorSignupScreen() {
             item {
                 OutlinedTextField(
                     value = email,
-                    onValueChange = { email = it },
+                    onValueChange = { 
+                        email = it
+                        emailError = if (it.isNotEmpty() && !validateMonashEmail(it)) {
+                            "Please enter a valid Monash email (e.g., shoq0003@student.monash.edu or abcd1234@monash.edu)"
+                        } else {
+                            null
+                        }
+                    },
                     label = { Text("Email") },
+                    isError = emailError != null,
+                    supportingText = {
+                        if (emailError != null) {
+                            Text(
+                                text = emailError!!,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -125,77 +196,86 @@ fun MentorSignupScreen() {
             item {
                 Button(
                     onClick = { 
-                        // Generate unique ID for the user
-                        val userId = UUID.randomUUID().toString()
-                        
-                        // Create basic user document
-                        val userDoc = hashMapOf(
-                            "uid" to userId,
-                            "name" to fullName,
-                            "studentId" to studentId,
-                            "email" to email,
-                            "isMentor" to true
-                        )
-                        
-                        // Create basic mentor profile
-                        val mentorDoc = hashMapOf(
-                            "uid" to userId,
-                            "name" to fullName,
-                            "studentId" to studentId,
-                            "email" to email,
-                            "expertise" to listOf<String>(),
-                            "unitsTaken" to listOf<String>(),
-                            "availability" to listOf<Map<String, Any>>(),
-                            "bio" to ""
-                        )
-                        
-                        // Save to users collection
-                        db.collection("users").document(userId)
-                            .set(userDoc)
-                            .addOnSuccessListener {
-                                Log.d("MentorSignup", "User document created successfully with data: $userDoc")
-                                
-                                // Save to mentors collection
-                                db.collection("mentors").document(userId)
-                                    .set(mentorDoc)
-                                    .addOnSuccessListener {
-                                        Log.d("MentorSignup", "Mentor profile created successfully with data: $mentorDoc")
-                                        
-                                        // Create and save local User object
-                                        val user = User(
-                                            name = fullName,
-                                            studentId = studentId,
-                                            email = email,
-                                            isMentor = true,
-                                            subjects = emptyList()
-                                        )
-                                        userManager.saveUser(user)
-                                        userManager.setCurrentUser(user)
-                                        
-                                        Toast.makeText(context, "Sign up successful! Complete your profile.", Toast.LENGTH_SHORT).show()
-                                        
-                                        val intent = Intent(context, MentorExpertisePage::class.java)
-                                        intent.putExtra("userId", userId)
-                                        context.startActivity(intent)
-                                        (context as ComponentActivity).finish()
-                                    }
-                                    .addOnFailureListener { e ->
-                                        Log.e("MentorSignup", "Error creating mentor profile", e)
-                                        // Cleanup if mentor profile creation fails
-                                        db.collection("users").document(userId).delete()
-                                        Toast.makeText(context, "Error creating mentor profile: ${e.message}", Toast.LENGTH_LONG).show()
-                                    }
-                            }
-                            .addOnFailureListener { e ->
-                                Log.e("MentorSignup", "Error creating user", e)
-                                Toast.makeText(context, "Error creating user: ${e.message}", Toast.LENGTH_LONG).show()
-                            }
+                        if (validateFullName(fullName) && validateMentorId(mentorId) && validateMonashEmail(email)) {
+                            // Generate unique ID for the user
+                            val userId = UUID.randomUUID().toString()
+                            
+                            // Create basic user document
+                            val userDoc = hashMapOf(
+                                "uid" to userId,
+                                "name" to fullName,
+                                "studentId" to mentorId,
+                                "email" to email,
+                                "isMentor" to true
+                            )
+                            
+                            // Create basic mentor profile
+                            val mentorDoc = hashMapOf(
+                                "uid" to userId,
+                                "name" to fullName,
+                                "studentId" to mentorId,
+                                "email" to email,
+                                "expertise" to listOf<String>(),
+                                "unitsTaken" to listOf<String>(),
+                                "availability" to listOf<Map<String, Any>>(),
+                                "bio" to ""
+                            )
+                            
+                            // Save to users collection
+                            db.collection("users").document(userId)
+                                .set(userDoc)
+                                .addOnSuccessListener {
+                                    Log.d("MentorSignup", "User document created successfully with data: $userDoc")
+                                    
+                                    // Save to mentors collection
+                                    db.collection("mentors").document(userId)
+                                        .set(mentorDoc)
+                                        .addOnSuccessListener {
+                                            Log.d("MentorSignup", "Mentor profile created successfully with data: $mentorDoc")
+                                            
+                                            // Create and save local User object
+                                            val user = User(
+                                                name = fullName,
+                                                studentId = mentorId,
+                                                email = email,
+                                                isMentor = true,
+                                                subjects = emptyList()
+                                            )
+                                            userManager.saveUser(user)
+                                            userManager.setCurrentUser(user)
+                                            
+                                            Toast.makeText(context, "Sign up successful! Complete your profile.", Toast.LENGTH_SHORT).show()
+                                            
+                                            val intent = Intent(context, MentorExpertisePage::class.java)
+                                            intent.putExtra("userId", userId)
+                                            context.startActivity(intent)
+                                            (context as ComponentActivity).finish()
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Log.e("MentorSignup", "Error creating mentor profile", e)
+                                            // Cleanup if mentor profile creation fails
+                                            db.collection("users").document(userId).delete()
+                                            Toast.makeText(context, "Error creating mentor profile: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("MentorSignup", "Error creating user", e)
+                                    Toast.makeText(context, "Error creating user: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp),
                     shape = RoundedCornerShape(8.dp),
-                    enabled = fullName.isNotEmpty() && studentId.isNotEmpty() && email.isNotEmpty()
+                    enabled = fullName.isNotEmpty() && 
+                             mentorId.isNotEmpty() && 
+                             email.isNotEmpty() && 
+                             fullNameError == null &&
+                             mentorIdError == null &&
+                             emailError == null &&
+                             mentorId.length == 8 &&
+                             validateMonashEmail(email)
                 ) {
                     Text("Sign Up")
                 }
