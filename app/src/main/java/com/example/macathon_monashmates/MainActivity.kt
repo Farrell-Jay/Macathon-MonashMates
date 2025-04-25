@@ -104,7 +104,6 @@ fun WelcomeScreen(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(40.dp))
             Button(
                 onClick = {
-                    
                     Toast.makeText(context, "Sign Up clicked!", Toast.LENGTH_SHORT).show()
                     // TODO: Navigate to signup screen
                 },
