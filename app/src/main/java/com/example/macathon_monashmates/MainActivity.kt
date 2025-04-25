@@ -75,9 +75,9 @@ fun WelcomeScreen(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Image(
-                painter = painterResource(id = R.drawable.app_logo),
+                painter = painterResource(id = R.drawable.img),
                 contentDescription = "App Logo",
-                modifier = Modifier.size(100.dp)
+                modifier = Modifier.size(400.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -104,6 +104,7 @@ fun WelcomeScreen(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(40.dp))
             Button(
                 onClick = {
+                    
                     Toast.makeText(context, "Sign Up clicked!", Toast.LENGTH_SHORT).show()
                     // TODO: Navigate to signup screen
                 },
