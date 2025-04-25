@@ -36,8 +36,14 @@ import com.example.macathon_monashmates.managers.UserManager
 import com.example.macathon_monashmates.utils.MonashBlue
 import com.example.macathon_monashmates.utils.MonashLightBlue
 import com.example.macathon_monashmates.utils.MonashDarkBlue
+import com.example.macathon_monashmates.data.repository.FirebaseRepository
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
+import android.util.Log
 
 class ProfilePage : ComponentActivity() {
+    private val repository = FirebaseRepository()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -71,51 +77,65 @@ fun ProfileScreen() {
     val context = LocalContext.current
     val userManager = remember { UserManager(context) }
     val currentUser = userManager.getCurrentUser()
-    val sharedPreferences = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
+    val db = FirebaseFirestore.getInstance()
     
-    val bio = remember { 
-        mutableStateOf(sharedPreferences.getString("${currentUser?.studentId}_bio", "") ?: "") 
-    }
-    val academicGoals = remember { 
-        mutableStateOf(sharedPreferences.getString("${currentUser?.studentId}_academicGoals", "") ?: "") 
-    }
-    val majors = remember { 
-        mutableStateOf(sharedPreferences.getString("${currentUser?.studentId}_majors", "")?.split(",") ?: emptyList()) 
-    }
+    var bio by remember { mutableStateOf("") }
+    var academicGoals by remember { mutableStateOf("") }
+    var majors by remember { mutableStateOf(listOf<String>()) }
+    var expertiseAreas by remember { mutableStateOf(listOf<String>()) }
+    var expertiseLevels by remember { mutableStateOf(mapOf<String, String>()) }
+    var subjects by remember { mutableStateOf(listOf<String>()) }
+    var timeSlots by remember { mutableStateOf(listOf<String>()) }
     
-    // Read expertise areas and levels
-    val expertiseAreas = remember {
-        mutableStateOf(sharedPreferences.getString("${currentUser?.studentId}_expertiseAreas", "")?.split("|||") ?: emptyList())
-    }
-    val expertiseLevels = remember {
-        val levelsStr = sharedPreferences.getString("${currentUser?.studentId}_expertiseLevels", "")
-        val levelsMap = if (levelsStr.isNullOrEmpty()) {
-            mapOf()
-        } else {
-            levelsStr.split("|||").associate { 
-                val (area, level) = it.split("::")
-                area to level
+    // Load data from Firestore
+    LaunchedEffect(currentUser) {
+        if (currentUser != null) {
+            try {
+                if (currentUser.isMentor) {
+                    // Load mentor profile
+                    val mentorDoc = db.collection("mentors")
+                        .document(currentUser.studentId)
+                        .get()
+                        .await()
+                        
+                    if (mentorDoc.exists()) {
+                        bio = mentorDoc.getString("bio") ?: ""
+                        expertiseAreas = (mentorDoc.get("expertise") as? List<String>) ?: listOf()
+                        subjects = (mentorDoc.get("unitsTaken") as? List<String>) ?: listOf()
+                        val availabilityList = mentorDoc.get("availability") as? List<Map<String, Any>>
+                        timeSlots = availabilityList?.map { slot ->
+                            val day = when (slot["dayOfWeek"] as Long) {
+                                1L -> "Monday"
+                                2L -> "Tuesday"
+                                3L -> "Wednesday"
+                                4L -> "Thursday"
+                                5L -> "Friday"
+                                6L -> "Saturday"
+                                7L -> "Sunday"
+                                else -> "Unknown"
+                            }
+                            "$day ${slot["startTime"]} - ${slot["endTime"]}"
+                        } ?: listOf()
+                    }
+                } else {
+                    // Load student profile
+                    val studentDoc = db.collection("students")
+                        .document(currentUser.studentId)
+                        .get()
+                        .await()
+                        
+                    if (studentDoc.exists()) {
+                        bio = studentDoc.getString("bio") ?: ""
+                        academicGoals = studentDoc.getString("academicGoals") ?: ""
+                        majors = (studentDoc.get("majors") as? List<String>) ?: listOf()
+                        subjects = (studentDoc.get("units") as? List<String>) ?: listOf()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ProfilePage", "Error loading profile data", e)
+                Toast.makeText(context, "Error loading profile: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
-        mutableStateOf(levelsMap)
-    }
-    
-    // Read subjects
-    val subjects = remember {
-        mutableStateOf(sharedPreferences.getString("${currentUser?.studentId}_subjects", "")?.split("|||") ?: emptyList())
-    }
-    
-    val timeSlots = remember { 
-        val rawTimeSlots = sharedPreferences.getString("${currentUser?.studentId}_timeSlots", null)
-        mutableStateOf(rawTimeSlots?.split("|||") ?: emptyList())
-    }
-
-    // Debug logging
-    LaunchedEffect(Unit) {
-        println("Debug - Loaded expertise areas: ${expertiseAreas.value}")
-        println("Debug - Loaded expertise levels: ${expertiseLevels.value}")
-        println("Debug - Loaded subjects: ${subjects.value}")
-        println("Debug - Loaded time slots: ${timeSlots.value}")
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -150,12 +170,13 @@ fun ProfileScreen() {
             item {
                 MainContent(
                     currentUser = currentUser,
-                    bio = bio.value,
-                    academicGoals = academicGoals.value,
-                    expertiseAreas = expertiseAreas.value,
-                    expertiseLevels = expertiseLevels.value,
-                    subjects = subjects.value,
-                    timeSlots = timeSlots.value
+                    bio = bio,
+                    academicGoals = academicGoals,
+                    expertiseAreas = expertiseAreas,
+                    expertiseLevels = expertiseLevels,
+                    subjects = subjects,
+                    timeSlots = timeSlots,
+                    majors = majors
                 )
             }
         }
@@ -255,10 +276,10 @@ private fun MainContent(
     expertiseAreas: List<String>,
     expertiseLevels: Map<String, String>,
     subjects: List<String>,
-    timeSlots: List<String>
+    timeSlots: List<String>,
+    majors: List<String>
 ) {
     val context = LocalContext.current
-    val sharedPreferences = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
     
     Card(
         modifier = Modifier
@@ -272,25 +293,7 @@ private fun MainContent(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            // Stats Row at the top
-            val studentSubjects = if (currentUser?.isMentor == false) {
-                sharedPreferences.getString("${currentUser.studentId}_subjects", "")
-                    ?.split("|||")
-                    ?.filter { it.isNotEmpty() }
-                    ?: emptyList()
-            } else {
-                subjects
-            }
-
-            val majorsList = if (currentUser?.isMentor == false) {
-                sharedPreferences.getString("${currentUser.studentId}_majors", "")
-                    ?.split(",")
-                    ?.filter { it.isNotEmpty() }
-                    ?: emptyList()
-            } else {
-                emptyList()
-            }
-
+            // Stats Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -303,7 +306,7 @@ private fun MainContent(
                         label = "Subjects"
                     )
                     StatColumn(
-                        number = (timeSlots.size / 3).toString(),
+                        number = timeSlots.size.toString(),
                         label = "Time Slots"
                     )
                     StatColumn(
@@ -312,11 +315,11 @@ private fun MainContent(
                     )
                 } else {
                     StatColumn(
-                        number = studentSubjects.size.toString(),
+                        number = subjects.size.toString(),
                         label = "Units"
                     )
                     StatColumn(
-                        number = majorsList.size.toString(),
+                        number = majors.size.toString(),
                         label = "Areas of Interest"
                     )
                 }
@@ -342,7 +345,7 @@ private fun MainContent(
             }
 
             // Subject/Units Section
-            if (studentSubjects.isNotEmpty()) {
+            if (subjects.isNotEmpty()) {
                 Text(
                     text = if (currentUser?.isMentor == true) "Units I Can Mentor" else "Units Taken",
                     fontSize = 20.sp,
@@ -355,7 +358,7 @@ private fun MainContent(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    studentSubjects.forEach { subject ->
+                    subjects.forEach { subject ->
                         Surface(
                             color = MonashLightBlue,
                             shape = RoundedCornerShape(20.dp)
@@ -381,7 +384,7 @@ private fun MainContent(
                 }
             } else {
                 // Student-specific sections
-                if (majorsList.isNotEmpty()) {
+                if (majors.isNotEmpty()) {
                     Text(
                         text = "Areas of Interest",
                         fontSize = 20.sp,
@@ -394,7 +397,7 @@ private fun MainContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        majorsList.forEach { major ->
+                        majors.forEach { major ->
                             Surface(
                                 color = MonashLightBlue,
                                 shape = RoundedCornerShape(20.dp)
@@ -434,7 +437,6 @@ private fun MainContent(
 
 @Composable
 private fun ExpertiseSection(expertiseAreas: List<String>, expertiseLevels: Map<String, String>) {
-    Divider(modifier = Modifier.padding(vertical = 16.dp))
     Text(
         text = "Areas of Expertise",
         fontSize = 20.sp,
@@ -444,50 +446,39 @@ private fun ExpertiseSection(expertiseAreas: List<String>, expertiseLevels: Map<
     )
     
     expertiseAreas.forEach { area ->
-        ExpertiseCard(area, expertiseLevels[area] ?: "Not specified")
-    }
-}
-
-@Composable
-private fun ExpertiseCard(area: String, level: String) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MonashLightBlue),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Row(
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(vertical = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MonashLightBlue
+            ),
+            shape = RoundedCornerShape(8.dp)
         ) {
-            Text(
-                text = area,
-                fontSize = 16.sp,
-                color = MonashBlue,
-                fontWeight = FontWeight.Bold
-            )
-            Surface(
-                color = MonashBlue,
-                shape = RoundedCornerShape(16.dp)
+            Column(
+                modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = level,
-                    color = Color.White,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    fontSize = 14.sp
+                    text = area,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MonashBlue
                 )
+                if (expertiseLevels.containsKey(area)) {
+                    Text(
+                        text = expertiseLevels[area] ?: "",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
             }
         }
     }
+    Divider(modifier = Modifier.padding(vertical = 16.dp))
 }
 
 @Composable
 private fun AvailabilitySection(timeSlots: List<String>) {
-    Divider(modifier = Modifier.padding(vertical = 16.dp))
     Text(
         text = "Weekly Availability",
         fontSize = 20.sp,
@@ -496,88 +487,42 @@ private fun AvailabilitySection(timeSlots: List<String>) {
         modifier = Modifier.padding(bottom = 12.dp)
     )
     
-    // Debug logging
-    println("Debug - AvailabilitySection received time slots: $timeSlots")
-    
-    val groupedSlots = remember(timeSlots) {
-        timeSlots
-            .chunked(3)  // Group into sets of 3 (day, start time, end time)
-            .mapNotNull { chunk ->
-                try {
-                    if (chunk.size == 3) {
-                        Triple(chunk[0], chunk[1], chunk[2])
-                    } else null
-                } catch (e: Exception) {
-                    println("Debug - Error parsing time slot: $chunk")
-                    println("Debug - Error: ${e.message}")
-                    null
-                }
-            }
-            .groupBy { it.first }
-    }
-
-    println("Debug - Grouped slots: $groupedSlots")
-
-    if (groupedSlots.isEmpty()) {
-        Text(
-            text = "No availability slots added yet",
-            color = Color.Gray,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-    } else {
-        groupedSlots.forEach { (day, slots) ->
-            AvailabilityCard(day, slots)
-        }
-    }
-}
-
-@Composable
-private fun AvailabilityCard(day: String, slots: List<Triple<String, String, String>>) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MonashLightBlue),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Column(
+    timeSlots.forEach { slot ->
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(vertical = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MonashLightBlue
+            ),
+            shape = RoundedCornerShape(8.dp)
         ) {
             Text(
-                text = day,
+                text = slot,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MonashBlue,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(16.dp),
+                color = MonashBlue
             )
-            slots.forEach { (_, startTime, endTime) ->
-                Text(
-                    text = "$startTime - $endTime",
-                    fontSize = 14.sp,
-                    color = Color.DarkGray,
-                    modifier = Modifier.padding(vertical = 2.dp)
-                )
-            }
         }
     }
+    Divider(modifier = Modifier.padding(vertical = 16.dp))
 }
 
 @Composable
 private fun AcademicGoalsSection(academicGoals: String) {
-    Divider(modifier = Modifier.padding(vertical = 16.dp))
     Text(
         text = "Academic Goals",
         fontSize = 20.sp,
         fontWeight = FontWeight.Bold,
         color = MonashBlue,
-        modifier = Modifier.padding(bottom = 12.dp)
+        modifier = Modifier.padding(bottom = 8.dp)
     )
     Text(
         text = academicGoals,
         fontSize = 16.sp,
-        color = Color.Gray
+        color = Color.Gray,
+        modifier = Modifier.padding(bottom = 24.dp)
     )
+    Divider(modifier = Modifier.padding(bottom = 16.dp))
 }
 
