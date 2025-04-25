@@ -2,6 +2,8 @@ package com.example.macathon_monashmates.screens
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -24,16 +26,41 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.macathon_monashmates.R
+import com.example.macathon_monashmates.data.repository.FirebaseRepository
 import com.example.macathon_monashmates.managers.ChatHistoryManager
 import com.example.macathon_monashmates.managers.UserManager
 import com.example.macathon_monashmates.models.ChatMessage
 import com.example.macathon_monashmates.models.User
+import com.example.macathon_monashmates.utils.MonashBlue
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 class ChatPage : ComponentActivity() {
+    private val repository = FirebaseRepository()
+    private lateinit var auth: FirebaseAuth
+    private var authStateListener: FirebaseAuth.AuthStateListener? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        auth = Firebase.auth
+        
+        // Add auth state listener
+        authStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            val currentUser = firebaseAuth.currentUser
+            if (currentUser == null) {
+                // User is signed out, redirect to login
+                val intent = Intent(this, LoginPage::class.java)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                startActivity(intent)
+                finish()
+            }
+        }
+        
         setContent {
             MaterialTheme {
                 val user = intent.getSerializableExtra("user") as? User
@@ -42,6 +69,7 @@ class ChatPage : ComponentActivity() {
                 if (user != null) {
                     ChatScreen(
                         user = user,
+                        repository = repository,
                         onBackClick = {
                             when (source) {
                                 "chat_history" -> {
@@ -69,26 +97,56 @@ class ChatPage : ComponentActivity() {
             }
         }
     }
+
+    override fun onStart() {
+        super.onStart()
+        authStateListener?.let { auth.addAuthStateListener(it) }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        authStateListener?.let { auth.removeAuthStateListener(it) }
+    }
 }
 
 @Composable
 fun ChatScreen(
     user: User,
+    repository: FirebaseRepository,
     onBackClick: () -> Unit
 ) {
     var message by remember { mutableStateOf("") }
     val context = LocalContext.current
-    val chatHistoryManager = remember { ChatHistoryManager(context) }
-    val userManager = remember { UserManager(context) }
-    val currentUser = userManager.getCurrentUser()
+    val scope = rememberCoroutineScope()
     val messages = remember { mutableStateListOf<ChatMessage>() }
+    val auth = Firebase.auth
+    val currentUser = auth.currentUser
     
-    // Load existing messages and clear unread count
+    // Load messages in real-time
     LaunchedEffect(user.studentId) {
         if (currentUser != null) {
-            messages.clear()
-            messages.addAll(chatHistoryManager.getChatHistory(currentUser.studentId, user.studentId))
-            chatHistoryManager.clearUnreadCount(currentUser.studentId, user.studentId)
+            try {
+                Toast.makeText(context, "Starting to load messages...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Current User ID: ${currentUser.uid}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Other User ID: ${user.studentId}", Toast.LENGTH_SHORT).show()
+                
+                repository.getChatMessages(currentUser.uid, user.studentId).collect { newMessages ->
+                    Toast.makeText(context, "Received ${newMessages.size} messages", Toast.LENGTH_SHORT).show()
+                    messages.clear()
+                    messages.addAll(newMessages.sortedBy { it.timestamp })
+                    Toast.makeText(context, "Messages updated: ${messages.size}", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e("ChatScreen", "Error loading messages", e)
+                Toast.makeText(context, "Error loading messages: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Error at: ${e.stackTrace[0]}", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            Toast.makeText(context, "Current user is null! Please sign in again.", Toast.LENGTH_LONG).show()
+            // Redirect to login if user is not authenticated
+            val intent = Intent(context, LoginPage::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            context.startActivity(intent)
         }
     }
     
@@ -104,11 +162,9 @@ fun ChatScreen(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = onBackClick
-            ) {
+            IconButton(onClick = onBackClick) {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_back),
+                    imageVector = Icons.Default.ArrowBack,
                     contentDescription = "Back"
                 )
             }
@@ -124,12 +180,14 @@ fun ChatScreen(
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
             reverseLayout = true,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(messages.reversed()) { message ->
-                MessageBubble(message, currentUser?.studentId == message.senderId)
+            Toast.makeText(context, "Displaying ${messages.size} messages", Toast.LENGTH_SHORT).show()
+            items(messages) { message ->
+                MessageBubble(message, message.senderId == currentUser?.uid)
             }
         }
         
@@ -137,7 +195,7 @@ fun ChatScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
@@ -154,18 +212,30 @@ fun ChatScreen(
                 onClick = {
                     if (message.isNotBlank() && currentUser != null) {
                         val newMessage = ChatMessage(
-                            senderId = currentUser.studentId,
+                            senderId = currentUser.uid,
                             receiverId = user.studentId,
-                            message = message
+                            message = message,
+                            timestamp = System.currentTimeMillis()
                         )
-                        messages.add(newMessage)
-                        chatHistoryManager.saveMessage(currentUser.studentId, user.studentId, newMessage)
-                        message = ""
+                        scope.launch {
+                            try {
+                                Toast.makeText(context, "Sending message...", Toast.LENGTH_SHORT).show()
+                                repository.sendMessage(newMessage)
+                                message = ""
+                                Toast.makeText(context, "Message sent successfully", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Log.e("ChatScreen", "Error sending message", e)
+                                Toast.makeText(context, "Failed to send message: ${e.message}", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Error at: ${e.stackTrace[0]}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    } else {
+                        Toast.makeText(context, "Cannot send: ${if (message.isBlank()) "message is blank" else "current user is null"}", Toast.LENGTH_SHORT).show()
                     }
                 },
                 modifier = Modifier
                     .size(48.dp)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(MonashBlue)
                     .clip(RoundedCornerShape(24.dp))
             ) {
                 Icon(
@@ -190,7 +260,7 @@ fun MessageBubble(message: ChatMessage, isSentByMe: Boolean) {
                 .widthIn(max = 280.dp),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = if (isSentByMe) MaterialTheme.colorScheme.primary 
+                containerColor = if (isSentByMe) MonashBlue 
                                 else MaterialTheme.colorScheme.surfaceVariant
             )
         ) {

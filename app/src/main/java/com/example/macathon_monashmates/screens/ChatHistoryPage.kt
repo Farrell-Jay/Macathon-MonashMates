@@ -10,6 +10,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,122 +23,136 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import android.widget.Toast
-import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
-import com.example.macathon_monashmates.R
+import com.example.macathon_monashmates.data.repository.FirebaseRepository
+import com.example.macathon_monashmates.models.ChatMessage
 import com.example.macathon_monashmates.models.User
+import com.example.macathon_monashmates.utils.MonashBlue
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 class ChatHistoryPage : ComponentActivity() {
+    private val repository = FirebaseRepository()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                val navController = rememberNavController()
-                ChatHistoryScreen(navController = navController)
+                ChatHistoryScreen(
+                    repository = repository,
+                    onNavigateToChat = { user ->
+                        val intent = Intent(this@ChatHistoryPage, ChatPage::class.java).apply {
+                            putExtra("user", user)
+                            putExtra("source", "chat_history")
+                        }
+                        startActivity(intent)
+                    },
+                    onNavigateToDiscover = {
+                        val intent = Intent(this@ChatHistoryPage, DiscoverPage::class.java)
+                        startActivity(intent)
+                    },
+                    onNavigateToHome = {
+                        val intent = Intent(this@ChatHistoryPage, HomePage::class.java)
+                        startActivity(intent)
+                    },
+                    onNavigateToProfile = {
+                        val intent = Intent(this@ChatHistoryPage, ProfilePage::class.java)
+                        startActivity(intent)
+                    }
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatHistoryScreen(navController: NavController) {
+fun ChatHistoryScreen(
+    repository: FirebaseRepository,
+    onNavigateToChat: (User) -> Unit,
+    onNavigateToDiscover: () -> Unit,
+    onNavigateToHome: () -> Unit,
+    onNavigateToProfile: () -> Unit
+) {
+    val recentChats = remember { mutableStateListOf<Pair<User, ChatMessage>>() }
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val currentUser = repository.getCurrentUser()
     
-    // Hardcoded chat history data with User objects
-    val chatHistory = listOf(
-        ChatHistoryItem(
-            user = User(
-                studentId = "1",
-                name = "Dr. Sarah Johnson",
-                email = "sarah.johnson@monash.edu",
-                isMentor = true,
-                subjects = listOf("Mathematics", "Statistics")
-            ),
-            lastMessage = "I've reviewed your assignment. Let's discuss the improvements needed.",
-            timestamp = "10:30 AM"
-        ),
-        ChatHistoryItem(
-            user = User(
-                studentId = "2",
-                name = "Prof. Michael Brown",
-                email = "michael.brown@monash.edu",
-                isMentor = true,
-                subjects = listOf("Computer Science", "Algorithms")
-            ),
-            lastMessage = "Great progress on the project! Let's schedule our next meeting.",
-            timestamp = "Yesterday"
-        ),
-        ChatHistoryItem(
-            user = User(
-                studentId = "3",
-                name = "Dr. Emily Chen",
-                email = "emily.chen@monash.edu",
-                isMentor = true,
-                subjects = listOf("Physics", "Quantum Mechanics")
-            ),
-            lastMessage = "The lab results look promising. We should analyze them together.",
-            timestamp = "2 days ago"
-        ),
-        ChatHistoryItem(
-            user = User(
-                studentId = "4",
-                name = "Prof. David Wilson",
-                email = "david.wilson@monash.edu",
-                isMentor = true,
-                subjects = listOf("Chemistry", "Organic Chemistry")
-            ),
-            lastMessage = "Your research proposal needs some refinement. Let's work on it.",
-            timestamp = "3 days ago"
-        )
-    )
+    LaunchedEffect(Unit) {
+        if (currentUser != null) {
+            scope.launch {
+                repository.getRecentChats(currentUser.uid).collectLatest { chats ->
+                    recentChats.clear()
+                    recentChats.addAll(chats)
+                }
+            }
+        }
+    }
     
     Scaffold(
-        bottomBar = { BottomNavigationBar(currentPage = 2) }
+        topBar = {
+            TopAppBar(
+                title = { Text("Chats", color = Color.White) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MonashBlue
+                ),
+                navigationIcon = {
+                    IconButton(onClick = onNavigateToHome) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color.White,
+                contentColor = MonashBlue
+            ) {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                    label = { Text("Home") },
+                    selected = false,
+                    onClick = onNavigateToHome
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Search, contentDescription = "Discover") },
+                    label = { Text("Discover") },
+                    selected = false,
+                    onClick = onNavigateToDiscover
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Chat, contentDescription = "Chats") },
+                    label = { Text("Chats") },
+                    selected = true,
+                    onClick = { }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+                    label = { Text("Profile") },
+                    selected = false,
+                    onClick = onNavigateToProfile
+                )
+            }
+        }
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color.White)
         ) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Chat History",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(start = 16.dp)
+            items(recentChats) { (user, message) ->
+                ChatHistoryItem(
+                    user = user,
+                    lastMessage = message.message,
+                    timestamp = SimpleDateFormat("HH:mm", Locale.getDefault())
+                        .format(Date(message.timestamp)),
+                    onItemClick = { onNavigateToChat(user) }
                 )
-            }
-            
-            // Chat List
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(chatHistory) { chatItem ->
-                    ChatHistoryItem(
-                        chatItem = chatItem,
-                        onItemClick = {
-                            val intent = Intent(context, ChatPage::class.java).apply {
-                                putExtra("user", chatItem.user)
-                                putExtra("source", "chat_history")
-                            }
-                            context.startActivity(intent)
-                        }
-                    )
-                }
             }
         }
     }
@@ -140,7 +160,9 @@ fun ChatHistoryScreen(navController: NavController) {
 
 @Composable
 fun ChatHistoryItem(
-    chatItem: ChatHistoryItem,
+    user: User,
+    lastMessage: String,
+    timestamp: String,
     onItemClick: () -> Unit
 ) {
     Card(
@@ -164,13 +186,13 @@ fun ChatHistoryItem(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = chatItem.user.name,
+                        text = user.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     
                     Text(
-                        text = if (chatItem.user.isMentor) "Mentor" else "Student",
+                        text = if (user.isMentor) "Mentor" else "Student",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.Gray
                     )
@@ -178,7 +200,7 @@ fun ChatHistoryItem(
                 
                 // Timestamp
                 Text(
-                    text = chatItem.timestamp,
+                    text = timestamp,
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
@@ -188,7 +210,7 @@ fun ChatHistoryItem(
             
             // Last Message
             Text(
-                text = chatItem.lastMessage,
+                text = lastMessage,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -201,11 +223,11 @@ fun ChatHistoryItem(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                chatItem.user.subjects.forEach { subject ->
+                user.subjects.forEach { subject ->
                     Text(
                         text = subject,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF009AC7),
+                        color = MonashBlue,
                         modifier = Modifier
                             .background(Color(0xFFE3F2FD), RoundedCornerShape(16.dp))
                             .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -214,10 +236,4 @@ fun ChatHistoryItem(
             }
         }
     }
-}
-
-data class ChatHistoryItem(
-    val user: User,
-    val lastMessage: String,
-    val timestamp: String
-) 
+} 
