@@ -4,69 +4,92 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.example.macathon_monashmates.R
-import com.example.macathon_monashmates.managers.UserManager
 import com.example.macathon_monashmates.models.User
 
 class ChatHistoryPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ChatHistoryScreen()
+            MaterialTheme {
+                val navController = rememberNavController()
+                ChatHistoryScreen(navController = navController)
+            }
         }
     }
 }
 
 @Composable
-fun ChatHistoryScreen() {
+fun ChatHistoryScreen(navController: NavController) {
     val context = LocalContext.current
-    val userManager = remember { UserManager(context) }
-    val currentUser = remember { userManager.getCurrentUser() }
     
-    // Sample chat history data - in a real app, this would come from a database
-    val chatHistory = remember {
-        listOf(
-            ChatHistoryItem(
-                user = "John Smith",
-                lastMessage = "Hey, are you still interested in the study group?",
-                timestamp = "10:30 AM"
+    // Hardcoded chat history data with User objects
+    val chatHistory = listOf(
+        ChatHistoryItem(
+            user = User(
+                studentId = "1",
+                name = "Dr. Sarah Johnson",
+                email = "sarah.johnson@monash.edu",
+                isMentor = true,
+                subjects = listOf("Mathematics", "Statistics")
             ),
-            ChatHistoryItem(
-                user = "Sarah Johnson",
-                lastMessage = "Thanks for the notes! They were really helpful.",
-                timestamp = "Yesterday"
+            lastMessage = "I've reviewed your assignment. Let's discuss the improvements needed.",
+            timestamp = "10:30 AM"
+        ),
+        ChatHistoryItem(
+            user = User(
+                studentId = "2",
+                name = "Prof. Michael Brown",
+                email = "michael.brown@monash.edu",
+                isMentor = true,
+                subjects = listOf("Computer Science", "Algorithms")
             ),
-            ChatHistoryItem(
-                user = "Michael Brown",
-                lastMessage = "Let's meet at the library tomorrow",
-                timestamp = "2 days ago"
-            )
+            lastMessage = "Great progress on the project! Let's schedule our next meeting.",
+            timestamp = "Yesterday"
+        ),
+        ChatHistoryItem(
+            user = User(
+                studentId = "3",
+                name = "Dr. Emily Chen",
+                email = "emily.chen@monash.edu",
+                isMentor = true,
+                subjects = listOf("Physics", "Quantum Mechanics")
+            ),
+            lastMessage = "The lab results look promising. We should analyze them together.",
+            timestamp = "2 days ago"
+        ),
+        ChatHistoryItem(
+            user = User(
+                studentId = "4",
+                name = "Prof. David Wilson",
+                email = "david.wilson@monash.edu",
+                isMentor = true,
+                subjects = listOf("Chemistry", "Organic Chemistry")
+            ),
+            lastMessage = "Your research proposal needs some refinement. Let's work on it.",
+            timestamp = "3 days ago"
         )
-    }
+    )
     
     Column(
         modifier = Modifier
@@ -81,7 +104,7 @@ fun ChatHistoryScreen() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = { (context as ComponentActivity).finish() }
+                onClick = { navController.navigateUp() }
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_back),
@@ -101,7 +124,7 @@ fun ChatHistoryScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(chatHistory) { chatItem ->
                 ChatHistoryItem(
@@ -130,50 +153,74 @@ fun ChatHistoryItem(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
         ) {
-            // Profile Image
-            Image(
-                painter = painterResource(id = R.drawable.ic_profile_placeholder),
-                contentDescription = "Profile Image",
-                modifier = Modifier
-                    .size(48.dp)
-                    .padding(end = 16.dp)
-            )
-            
-            // Chat Info
-            Column(
-                modifier = Modifier.weight(1f)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = chatItem.user,
-                    style = MaterialTheme.typography.titleMedium
-                )
+                // User Info
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = chatItem.user.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Text(
+                        text = if (chatItem.user.isMentor) "Mentor" else "Student",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                }
                 
+                // Timestamp
                 Text(
-                    text = chatItem.lastMessage,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = chatItem.timestamp,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
                 )
             }
             
-            // Timestamp
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Last Message
             Text(
-                text = chatItem.timestamp,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(start = 8.dp)
+                text = chatItem.lastMessage,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Subjects
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                chatItem.user.subjects.forEach { subject ->
+                    Text(
+                        text = subject,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF009AC7),
+                        modifier = Modifier
+                            .background(Color(0xFFE3F2FD), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
         }
     }
 }
 
 data class ChatHistoryItem(
-    val user: String,
+    val user: User,
     val lastMessage: String,
     val timestamp: String
 ) 

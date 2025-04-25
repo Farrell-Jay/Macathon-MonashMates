@@ -434,7 +434,7 @@ fun BottomNavigationBar(currentPage: Int = 1) {
             label = { Text("Chat") },
             selected = currentPage == 2,
             onClick = { 
-                val intent = Intent(context, ChatPage::class.java)
+                val intent = Intent(context, ChatHistoryPage::class.java)
                 context.startActivity(intent)
                 (context as ComponentActivity).finish()
             },

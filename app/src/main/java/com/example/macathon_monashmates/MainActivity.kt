@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.macathon_monashmates.screens.SignUpPage
 import com.example.macathon_monashmates.screens.NewLoginPage
+import com.example.macathon_monashmates.screens.ChatHistoryPage
 import com.example.macathon_monashmates.ui.theme.MacathonMonashMatesTheme
 
 class MainActivity : ComponentActivity() {

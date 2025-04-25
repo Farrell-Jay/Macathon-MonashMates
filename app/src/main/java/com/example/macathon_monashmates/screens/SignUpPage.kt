@@ -59,15 +59,6 @@ fun SignUpScreen() {
             }
         }
 
-        // Logo
-        Image(
-            painter = painterResource(id = R.drawable.monashmates),
-            contentDescription = "MonashMates Logo",
-            modifier = Modifier
-                .size(150.dp)
-                .padding(top = 16.dp, bottom = 32.dp)
-        )
-
         Text(
             text = "Choose Your Role",
             fontSize = 24.sp,
