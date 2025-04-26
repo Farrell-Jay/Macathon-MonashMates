@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.macathon_monashmates.R
@@ -42,24 +43,9 @@ import java.util.*
 
 class ChatPage : ComponentActivity() {
     private val repository = FirebaseRepository()
-    private lateinit var auth: FirebaseAuth
-    private var authStateListener: FirebaseAuth.AuthStateListener? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        auth = Firebase.auth
-        
-        // Add auth state listener
-        authStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
-            val currentUser = firebaseAuth.currentUser
-            if (currentUser == null) {
-                // User is signed out, redirect to login
-                val intent = Intent(this, LoginPage::class.java)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                startActivity(intent)
-                finish()
-            }
-        }
         
         setContent {
             MaterialTheme {
@@ -82,6 +68,9 @@ class ChatPage : ComponentActivity() {
                                     startActivity(intent)
                                     finish()
                                 }
+                                "profile_view" -> {
+                                    finish() // Just go back to previous screen
+                                }
                                 else -> {
                                     val intent = Intent(this, HomePage::class.java)
                                     startActivity(intent)
@@ -97,16 +86,6 @@ class ChatPage : ComponentActivity() {
             }
         }
     }
-
-    override fun onStart() {
-        super.onStart()
-        authStateListener?.let { auth.addAuthStateListener(it) }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        authStateListener?.let { auth.removeAuthStateListener(it) }
-    }
 }
 
 @Composable
@@ -119,34 +98,45 @@ fun ChatScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val messages = remember { mutableStateListOf<ChatMessage>() }
-    val auth = Firebase.auth
-    val currentUser = auth.currentUser
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // Get the current user from UserManager instead of Firebase Auth
+    val userManager = remember { UserManager(context) }
+    val currentUser = userManager.getCurrentUser()
     
     // Load messages in real-time
     LaunchedEffect(user.studentId) {
-        if (currentUser != null) {
-            try {
-                Toast.makeText(context, "Starting to load messages...", Toast.LENGTH_SHORT).show()
-                Toast.makeText(context, "Current User ID: ${currentUser.uid}", Toast.LENGTH_SHORT).show()
-                Toast.makeText(context, "Other User ID: ${user.studentId}", Toast.LENGTH_SHORT).show()
+        try {
+            isLoading = true
+            errorMessage = null
+            
+            if (currentUser != null) {
+                // Get the chat ID for logging
+                val chatId = if (currentUser.studentId < user.studentId) 
+                    "${currentUser.studentId}_${user.studentId}" 
+                else 
+                    "${user.studentId}_${currentUser.studentId}"
                 
-                repository.getChatMessages(currentUser.uid, user.studentId).collect { newMessages ->
-                    Toast.makeText(context, "Received ${newMessages.size} messages", Toast.LENGTH_SHORT).show()
+                Log.d("ChatScreen", "Setting up message listener for chat ID: $chatId")
+                Log.d("ChatScreen", "Current user ID: ${currentUser.studentId}")
+                Log.d("ChatScreen", "Other user ID: ${user.studentId}")
+                
+                // Load messages using the repository
+                repository.getChatMessages(currentUser.studentId, user.studentId).collect { newMessages ->
+                    Log.d("ChatScreen", "Received ${newMessages.size} messages")
                     messages.clear()
                     messages.addAll(newMessages.sortedBy { it.timestamp })
-                    Toast.makeText(context, "Messages updated: ${messages.size}", Toast.LENGTH_SHORT).show()
+                    isLoading = false
                 }
-            } catch (e: Exception) {
-                Log.e("ChatScreen", "Error loading messages", e)
-                Toast.makeText(context, "Error loading messages: ${e.message}", Toast.LENGTH_LONG).show()
-                Toast.makeText(context, "Error at: ${e.stackTrace[0]}", Toast.LENGTH_LONG).show()
+            } else {
+                errorMessage = "Current user information not found. Please log in again."
+                isLoading = false
             }
-        } else {
-            Toast.makeText(context, "Current user is null! Please sign in again.", Toast.LENGTH_LONG).show()
-            // Redirect to login if user is not authenticated
-            val intent = Intent(context, LoginPage::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("ChatScreen", "Error loading messages", e)
+            errorMessage = "Failed to load messages: ${e.message}"
+            isLoading = false
         }
     }
     
@@ -176,18 +166,81 @@ fun ChatScreen(
             )
         }
         
-        // Messages List
-        LazyColumn(
+        // Messages List or Loading/Error state
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            reverseLayout = true,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Toast.makeText(context, "Displaying ${messages.size} messages", Toast.LENGTH_SHORT).show()
-            items(messages) { message ->
-                MessageBubble(message, message.senderId == currentUser?.uid)
+            when {
+                isLoading -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .align(Alignment.Center)
+                    )
+                }
+                errorMessage != null -> {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = errorMessage ?: "Unknown error",
+                            color = Color.Red,
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = {
+                                isLoading = true
+                                errorMessage = null
+                                scope.launch {
+                                    try {
+                                        // Attempt to load messages again
+                                        if (currentUser != null) {
+                                            repository.getChatMessages(currentUser.studentId, user.studentId).collect { newMessages ->
+                                                messages.clear()
+                                                messages.addAll(newMessages.sortedBy { it.timestamp })
+                                                isLoading = false
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        errorMessage = "Failed to reload: ${e.message}"
+                                        isLoading = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            Text("Retry")
+                        }
+                    }
+                }
+                messages.isEmpty() -> {
+                    Text(
+                        text = "No messages yet. Start the conversation!",
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(16.dp),
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        reverseLayout = true,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(messages) { message ->
+                            MessageBubble(message, message.senderId == currentUser?.studentId)
+                        }
+                    }
+                }
             }
         }
         
@@ -203,46 +256,75 @@ fun ChatScreen(
                 onValueChange = { message = it },
                 placeholder = { Text("Type a message...") },
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(24.dp),
+                enabled = !isLoading && errorMessage == null
             )
             
             Spacer(modifier = Modifier.width(8.dp))
             
+            var isSending by remember { mutableStateOf(false) }
+            
             IconButton(
                 onClick = {
-                    if (message.isNotBlank() && currentUser != null) {
+                    if (message.isNotBlank() && currentUser != null && !isSending) {
+                        isSending = true
+                        val chatId = if (currentUser.studentId < user.studentId) 
+                            "${currentUser.studentId}_${user.studentId}" 
+                        else 
+                            "${user.studentId}_${currentUser.studentId}"
+                            
+                        Log.d("ChatScreen", "Sending message to chat ID: $chatId")
+                        
                         val newMessage = ChatMessage(
-                            senderId = currentUser.uid,
+                            senderId = currentUser.studentId,
                             receiverId = user.studentId,
                             message = message,
                             timestamp = System.currentTimeMillis()
                         )
+                        
+                        val tempMessage = message
+                        message = "" // Clear input field immediately for better UX
+                        
                         scope.launch {
                             try {
-                                Toast.makeText(context, "Sending message...", Toast.LENGTH_SHORT).show()
                                 repository.sendMessage(newMessage)
-                                message = ""
-                                Toast.makeText(context, "Message sent successfully", Toast.LENGTH_SHORT).show()
+                                Log.d("ChatScreen", "Message sent successfully")
                             } catch (e: Exception) {
                                 Log.e("ChatScreen", "Error sending message", e)
-                                Toast.makeText(context, "Failed to send message: ${e.message}", Toast.LENGTH_LONG).show()
-                                Toast.makeText(context, "Error at: ${e.stackTrace[0]}", Toast.LENGTH_LONG).show()
+                                // Show error and restore message text
+                                message = tempMessage
+                                Toast.makeText(
+                                    context, 
+                                    "Failed to send: ${e.message}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } finally {
+                                isSending = false
                             }
                         }
-                    } else {
-                        Toast.makeText(context, "Cannot send: ${if (message.isBlank()) "message is blank" else "current user is null"}", Toast.LENGTH_SHORT).show()
                     }
                 },
                 modifier = Modifier
                     .size(48.dp)
-                    .background(MonashBlue)
-                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        color = if (message.isNotBlank() && !isSending) MonashBlue else Color.Gray,
+                        shape = RoundedCornerShape(24.dp)
+                    ),
+                enabled = message.isNotBlank() && !isSending && !isLoading && errorMessage == null
             ) {
-                Icon(
-                    imageVector = Icons.Default.Send,
-                    contentDescription = "Send",
-                    tint = Color.White
-                )
+                if (isSending) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Send,
+                        contentDescription = "Send",
+                        tint = Color.White
+                    )
+                }
             }
         }
     }
