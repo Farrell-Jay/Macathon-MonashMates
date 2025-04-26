@@ -2,6 +2,7 @@ package com.example.macathon_monashmates.screens
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -32,6 +33,8 @@ import com.example.macathon_monashmates.R
 import com.example.macathon_monashmates.models.User
 import com.example.macathon_monashmates.data.models.MentorProfile
 import com.example.macathon_monashmates.data.models.StudentProfile
+import com.example.macathon_monashmates.managers.RecommendationManager
+import kotlinx.coroutines.launch
 
 class HomePage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,58 +83,87 @@ class HomePage : ComponentActivity() {
 fun HomeScreen() {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
     
-    // Simulated data - in a real app, this would come from Firebase
-    val recommendedMentors = remember {
-        listOf(
-            MentorRecommendation(
-                name = "Jane Smith",
-                expertise = listOf("Computer Science", "Machine Learning"),
-                bio = "PhD student specializing in AI systems",
-                rating = 4.9f
-            ),
-            MentorRecommendation(
-                name = "Michael Brown",
-                expertise = listOf("Engineering", "Mathematics"),
-                bio = "3rd year Engineering student with tutoring experience",
-                rating = 4.7f
-            ),
-            MentorRecommendation(
-                name = "Sarah Johnson",
-                expertise = listOf("Business", "Economics"),
-                bio = "Business graduate with industry experience",
-                rating = 4.8f
-            )
-        )
-    }
-    
-    val recommendedStudents = remember {
-        listOf(
-            StudentRecommendation(
-                name = "Alex Turner",
-                interests = listOf("Mobile App Development", "Web Design"),
-                bio = "First year CS student looking for coding mentorship",
-                year = "1st Year"
-            ),
-            StudentRecommendation(
-                name = "Emily Chen",
-                interests = listOf("Data Science", "Statistics"),
-                bio = "Seeking help with advanced statistics concepts",
-                year = "2nd Year"
-            ),
-            StudentRecommendation(
-                name = "Carlos Rodriguez",
-                interests = listOf("Cybersecurity", "Networking"),
-                bio = "Passionate about security and looking for guidance",
-                year = "3rd Year"
-            )
-        )
-    }
+    // State for recommendations
+    var recommendedMentors by remember { mutableStateOf<List<MentorRecommendation>>(emptyList()) }
+    var recommendedStudents by remember { mutableStateOf<List<StudentRecommendation>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
     
     // State to control recommendation dialogs 
     var showAllMentors by remember { mutableStateOf(false) }
     var showAllStudents by remember { mutableStateOf(false) }
     
+    // Current user - in a real app, this would come from your auth service
+    val currentUser = remember {
+        User(
+            name = "John Doe",
+            studentId = "12345678",
+            email = "john.doe@student.monash.edu",
+            isMentor = false,
+            subjects = listOf("FIT1008", "FIT2004", "FIT2102", "MTH1030")
+        )
+    }
+    
+    // Initialize the recommendation manager
+    val recommendationManager = remember { RecommendationManager.getInstance(context) }
+    
+    // Load recommendations
+    LaunchedEffect(currentUser) {
+        isLoading = true
+        
+        coroutineScope.launch {
+            try {
+                // Get mentor recommendations
+                val mentorPairs = recommendationManager.getRecommendedMentors(currentUser, 5)
+                recommendedMentors = mentorPairs.map { (mentor, user) ->
+                    // Calculate unit comparison details
+                    val unitComparison = recommendationManager.getUnitComparisonDetails(
+                        currentUser.subjects, 
+                        mentor.unitsTaken
+                    )
+                    
+                    MentorRecommendation(
+                        name = user.name,
+                        expertise = mentor.areasOfExpertise,
+                        bio = mentor.bio,
+                        rating = 4.5f, // For demo, would be retrieved from ratings in a real app
+                        recommendationReason = recommendationManager.generateMentorReason(currentUser, mentor),
+                        compatibilityScore = unitComparison.compatibilityScore,
+                        sharedUnits = unitComparison.sharedUnits
+                    )
+                }
+                
+                // Get student recommendations
+                val studentPairs = recommendationManager.getRecommendedStudents(currentUser, 5)
+                recommendedStudents = studentPairs.map { (student, user) ->
+                    // Calculate unit comparison details
+                    val unitComparison = recommendationManager.getUnitComparisonDetails(
+                        currentUser.subjects, 
+                        student.currentUnits
+                    )
+                    
+                    StudentRecommendation(
+                        name = user.name,
+                        interests = student.areasOfInterest,
+                        bio = student.bio,
+                        year = "2nd Year", // For demo, would be retrieved from student data
+                        recommendationReason = recommendationManager.generateStudentReason(currentUser, student),
+                        compatibilityScore = unitComparison.compatibilityScore,
+                        sharedUnits = unitComparison.sharedUnits
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("HomePage", "Error loading recommendations: ${e.message}")
+                recommendedMentors = emptyList()
+                recommendedStudents = emptyList()
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+    
+    // The rest of the HomeScreen content
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -289,63 +321,107 @@ fun HomeScreen() {
                 }
             }
             
-            // Recommended Mentors Section
-            SectionTitle(
-                title = "Recommended Mentors", 
-                icon = Icons.Default.Person,
-                onViewAllClick = { showAllMentors = true }
-            )
-            
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp)
-            ) {
-                items(recommendedMentors) { mentor ->
-                    MentorCard(
-                        name = mentor.name,
-                        expertise = mentor.expertise,
-                        bio = mentor.bio,
-                        rating = mentor.rating,
-                        onClick = {
-                            // In a real app, this would navigate to the mentor's profile
-                            // For now, just navigate to DiscoverPage
-                            val intent = Intent(context, DiscoverPage::class.java)
-                            context.startActivity(intent)
-                        }
-                    )
+            // Display loading indicator if recommendations are loading
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color(0xFF009AC7))
                 }
-            }
-            
-            // Recommended Students Section
-            SectionTitle(
-                title = "Recommended Students", 
-                icon = Icons.Default.School,
-                onViewAllClick = { showAllStudents = true }
-            )
-            
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp)
-            ) {
-                items(recommendedStudents) { student ->
-                    StudentCard(
-                        name = student.name,
-                        interests = student.interests,
-                        bio = student.bio,
-                        year = student.year,
-                        onClick = {
-                            // In a real app, this would navigate to the student's profile
-                            // For now, just navigate to DiscoverPage
-                            val intent = Intent(context, DiscoverPage::class.java)
-                            context.startActivity(intent)
-                        }
-                    )
+            } else {
+                // Recommended Mentors Section
+                SectionTitle(
+                    title = "AI Recommended Mentors", 
+                    icon = Icons.Default.Person,
+                    onViewAllClick = { showAllMentors = true }
+                )
+                
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
+                    items(recommendedMentors) { mentor ->
+                        MentorCard(
+                            name = mentor.name,
+                            expertise = mentor.expertise,
+                            bio = mentor.bio,
+                            rating = mentor.rating,
+                            recommendationReason = mentor.recommendationReason,
+                            compatibilityScore = mentor.compatibilityScore,
+                            sharedUnits = mentor.sharedUnits,
+                            onClick = {
+                                // Navigate to profile view
+                                val intent = Intent(context, DiscoverPage::class.java)
+                                context.startActivity(intent)
+                            },
+                            onConnectClick = {
+                                // Navigate directly to chat with this mentor
+                                val intent = Intent(context, ChatPage::class.java).apply {
+                                    putExtra("user", User(
+                                        name = mentor.name,
+                                        studentId = "", // In a real app, this would be the actual ID
+                                        email = "",     // In a real app, this would be the actual email
+                                        isMentor = true,
+                                        subjects = mentor.expertise
+                                    ))
+                                    putExtra("source", "home")
+                                }
+                                context.startActivity(intent)
+                            }
+                        )
+                    }
+                }
+                
+                // Recommended Students Section
+                SectionTitle(
+                    title = "AI Recommended Students", 
+                    icon = Icons.Default.School,
+                    onViewAllClick = { showAllStudents = true }
+                )
+                
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
+                    items(recommendedStudents) { student ->
+                        StudentCard(
+                            name = student.name,
+                            interests = student.interests,
+                            bio = student.bio,
+                            year = student.year,
+                            recommendationReason = student.recommendationReason,
+                            compatibilityScore = student.compatibilityScore,
+                            sharedUnits = student.sharedUnits,
+                            onClick = {
+                                // Navigate to profile view
+                                val intent = Intent(context, DiscoverPage::class.java)
+                                context.startActivity(intent)
+                            },
+                            onConnectClick = {
+                                // Navigate directly to chat with this student
+                                val intent = Intent(context, ChatPage::class.java).apply {
+                                    putExtra("user", User(
+                                        name = student.name,
+                                        studentId = "", // In a real app, this would be the actual ID
+                                        email = "",     // In a real app, this would be the actual email
+                                        isMentor = false,
+                                        subjects = student.interests
+                                    ))
+                                    putExtra("source", "home")
+                                }
+                                context.startActivity(intent)
+                            }
+                        )
+                    }
                 }
             }
             
@@ -364,9 +440,26 @@ fun HomeScreen() {
                         expertise = mentor.expertise,
                         bio = mentor.bio,
                         rating = mentor.rating,
+                        recommendationReason = mentor.recommendationReason,
+                        compatibilityScore = mentor.compatibilityScore,
+                        sharedUnits = mentor.sharedUnits,
                         onClick = {
                             showAllMentors = false
                             val intent = Intent(context, DiscoverPage::class.java)
+                            context.startActivity(intent)
+                        },
+                        onConnectClick = {
+                            showAllMentors = false
+                            val intent = Intent(context, ChatPage::class.java).apply {
+                                putExtra("user", User(
+                                    name = mentor.name,
+                                    studentId = "", // In a real app, this would be the actual ID
+                                    email = "",     // In a real app, this would be the actual email
+                                    isMentor = true,
+                                    subjects = mentor.expertise
+                                ))
+                                putExtra("source", "home")
+                            }
                             context.startActivity(intent)
                         }
                     )
@@ -387,9 +480,26 @@ fun HomeScreen() {
                         interests = student.interests,
                         bio = student.bio,
                         year = student.year,
+                        recommendationReason = student.recommendationReason,
+                        compatibilityScore = student.compatibilityScore,
+                        sharedUnits = student.sharedUnits,
                         onClick = {
                             showAllStudents = false
                             val intent = Intent(context, DiscoverPage::class.java)
+                            context.startActivity(intent)
+                        },
+                        onConnectClick = {
+                            showAllStudents = false
+                            val intent = Intent(context, ChatPage::class.java).apply {
+                                putExtra("user", User(
+                                    name = student.name,
+                                    studentId = "", // In a real app, this would be the actual ID
+                                    email = "",     // In a real app, this would be the actual email
+                                    isMentor = false,
+                                    subjects = student.interests
+                                ))
+                                putExtra("source", "home")
+                            }
                             context.startActivity(intent)
                         }
                     )
@@ -485,7 +595,11 @@ fun MentorCard(
     expertise: List<String>,
     bio: String,
     rating: Float,
-    onClick: () -> Unit
+    recommendationReason: String = "",
+    compatibilityScore: Float = 0f,
+    sharedUnits: List<String> = emptyList(),
+    onClick: () -> Unit,
+    onConnectClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -549,6 +663,58 @@ fun MentorCard(
                             color = Color.Gray,
                             modifier = Modifier.padding(start = 4.dp)
                         )
+                        
+                        // Add compatibility score
+                        if (compatibilityScore > 0) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "•",
+                                color = Color.Gray,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Compatibility",
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "${compatibilityScore.toInt()}%",
+                                fontSize = 14.sp,
+                                color = Color(0xFF4CAF50),
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // AI Recommendation Reason
+            if (recommendationReason.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    color = Color(0xFF009AC7).copy(alpha = 0.05f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lightbulb,
+                            contentDescription = "AI Recommendation",
+                            tint = Color(0xFF009AC7),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = recommendationReason,
+                            fontSize = 12.sp,
+                            color = Color(0xFF009AC7),
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
                     }
                 }
             }
@@ -592,6 +758,47 @@ fun MentorCard(
                 }
             }
             
+            // Show shared units if available
+            if (sharedUnits.isNotEmpty()) {
+                Text(
+                    text = "Matching Units (${sharedUnits.size}):",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF002A5C),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    sharedUnits.take(2).forEach { unit ->
+                        Surface(
+                            modifier = Modifier.height(26.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF4CAF50).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = unit,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF4CAF50),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    if (sharedUnits.size > 2) {
+                        Text(
+                            text = "+${sharedUnits.size - 2}",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.align(Alignment.CenterVertically)
+                        )
+                    }
+                }
+            }
+            
             // Bio
             Text(
                 text = bio,
@@ -603,7 +810,7 @@ fun MentorCard(
             
             // Chat Button
             Button(
-                onClick = onClick,
+                onClick = onConnectClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp)
@@ -631,7 +838,11 @@ fun StudentCard(
     interests: List<String>,
     bio: String,
     year: String,
-    onClick: () -> Unit
+    recommendationReason: String = "",
+    compatibilityScore: Float = 0f,
+    sharedUnits: List<String> = emptyList(),
+    onClick: () -> Unit,
+    onConnectClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -667,7 +878,7 @@ fun StudentCard(
                     )
                 }
                 
-                // Name & Year
+                // Name & Year with Compatibility
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -679,12 +890,68 @@ fun StudentCard(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF002A5C)
                     )
-                    Text(
-                        text = year,
-                        fontSize = 14.sp,
-                        color = Color.Gray,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(top = 4.dp)
-                    )
+                    ) {
+                        Text(
+                            text = year,
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                        
+                        // Add compatibility score
+                        if (compatibilityScore > 0) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "•",
+                                color = Color.Gray,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Compatibility",
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "${compatibilityScore.toInt()}%",
+                                fontSize = 14.sp,
+                                color = Color(0xFF4CAF50),
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // AI Recommendation Reason
+            if (recommendationReason.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    color = Color(0xFF009AC7).copy(alpha = 0.05f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lightbulb,
+                            contentDescription = "AI Recommendation",
+                            tint = Color(0xFF009AC7),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = recommendationReason,
+                            fontSize = 12.sp,
+                            color = Color(0xFF009AC7),
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
                 }
             }
             
@@ -727,6 +994,47 @@ fun StudentCard(
                 }
             }
             
+            // Show shared units if available
+            if (sharedUnits.isNotEmpty()) {
+                Text(
+                    text = "Matching Units (${sharedUnits.size}):",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF002A5C),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    sharedUnits.take(2).forEach { unit ->
+                        Surface(
+                            modifier = Modifier.height(26.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF4CAF50).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = unit,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF4CAF50),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    if (sharedUnits.size > 2) {
+                        Text(
+                            text = "+${sharedUnits.size - 2}",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.align(Alignment.CenterVertically)
+                        )
+                    }
+                }
+            }
+            
             // Bio
             Text(
                 text = bio,
@@ -736,9 +1044,9 @@ fun StudentCard(
                 maxLines = 2
             )
             
-            // Mentor Button
+            // Connect Button
             Button(
-                onClick = onClick,
+                onClick = onConnectClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp)
@@ -747,12 +1055,12 @@ fun StudentCard(
             ) {
                 Icon(
                     imageVector = Icons.Default.Chat,
-                    contentDescription = "Mentor",
+                    contentDescription = "Connect",
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Mentor",
+                    text = "Connect",
                     fontSize = 14.sp
                 )
             }
@@ -765,12 +1073,18 @@ data class MentorRecommendation(
     val name: String,
     val expertise: List<String>,
     val bio: String,
-    val rating: Float
+    val rating: Float,
+    val recommendationReason: String,
+    val compatibilityScore: Float = 0f,
+    val sharedUnits: List<String> = emptyList()
 )
 
 data class StudentRecommendation(
     val name: String,
     val interests: List<String>,
     val bio: String,
-    val year: String
+    val year: String,
+    val recommendationReason: String,
+    val compatibilityScore: Float = 0f,
+    val sharedUnits: List<String> = emptyList()
 ) 
