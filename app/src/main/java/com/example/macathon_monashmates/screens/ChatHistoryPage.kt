@@ -2,6 +2,7 @@ package com.example.macathon_monashmates.screens
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -9,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -24,9 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.macathon_monashmates.data.repository.FirebaseRepository
+import com.example.macathon_monashmates.managers.UserManager
 import com.example.macathon_monashmates.models.ChatMessage
 import com.example.macathon_monashmates.models.User
 import com.example.macathon_monashmates.utils.MonashBlue
@@ -81,16 +85,35 @@ fun ChatHistoryScreen(
     val recentChats = remember { mutableStateListOf<Pair<User, ChatMessage>>() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val currentUser = repository.getCurrentUser()
+    
+    // Get user from UserManager instead of Firebase Auth
+    val userManager = remember { UserManager(context) }
+    val currentUser = userManager.getCurrentUser()
+    
+    // Loading and error states
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     
     LaunchedEffect(Unit) {
-        if (currentUser != null) {
-            scope.launch {
-                repository.getRecentChats(currentUser.uid).collectLatest { chats ->
-                    recentChats.clear()
-                    recentChats.addAll(chats)
+        try {
+            if (currentUser != null) {
+                Log.d("ChatHistory", "Loading chats for user: ${currentUser.studentId}")
+                scope.launch {
+                    repository.getRecentChats(currentUser.studentId).collectLatest { chats ->
+                        recentChats.clear()
+                        recentChats.addAll(chats)
+                        isLoading = false
+                        Log.d("ChatHistory", "Loaded ${chats.size} chats")
+                    }
                 }
+            } else {
+                errorMessage = "User not logged in"
+                isLoading = false
             }
+        } catch (e: Exception) {
+            Log.e("ChatHistory", "Error loading chats", e)
+            errorMessage = "Failed to load chats: ${e.message}"
+            isLoading = false
         }
     }
     
@@ -140,19 +163,100 @@ fun ChatHistoryScreen(
             }
         }
     ) { padding ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            items(recentChats) { (user, message) ->
-                ChatHistoryItem(
-                    user = user,
-                    lastMessage = message.message,
-                    timestamp = SimpleDateFormat("HH:mm", Locale.getDefault())
-                        .format(Date(message.timestamp)),
-                    onItemClick = { onNavigateToChat(user) }
-                )
+            when {
+                isLoading -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .align(Alignment.Center)
+                    )
+                }
+                errorMessage != null -> {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = errorMessage ?: "Unknown error",
+                            color = Color.Red,
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = {
+                                isLoading = true
+                                errorMessage = null
+                                if (currentUser != null) {
+                                    scope.launch {
+                                        try {
+                                            repository.getRecentChats(currentUser.studentId).collectLatest { chats ->
+                                                recentChats.clear()
+                                                recentChats.addAll(chats)
+                                                isLoading = false
+                                            }
+                                        } catch (e: Exception) {
+                                            errorMessage = "Failed to reload: ${e.message}"
+                                            isLoading = false
+                                        }
+                                    }
+                                } else {
+                                    errorMessage = "User not logged in"
+                                    isLoading = false
+                                }
+                            },
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            Text("Retry")
+                        }
+                    }
+                }
+                recentChats.isEmpty() -> {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "No chat history yet",
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        Button(
+                            onClick = onNavigateToDiscover,
+                            modifier = Modifier
+                                .padding(top = 16.dp)
+                                .fillMaxWidth()
+                        ) {
+                            Text("Discover people to chat with")
+                        }
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(recentChats) { (user, message) ->
+                            ChatHistoryItem(
+                                user = user,
+                                lastMessage = message.message,
+                                timestamp = SimpleDateFormat("HH:mm", Locale.getDefault())
+                                    .format(Date(message.timestamp)),
+                                onItemClick = { onNavigateToChat(user) }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -168,22 +272,42 @@ fun ChatHistoryItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onItemClick),
+            .clickable(onClick = onItemClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            // Avatar placeholder
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(MonashBlue.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
             ) {
-                // User Info
-                Column(
-                    modifier = Modifier.weight(1f)
+                Text(
+                    text = user.name.firstOrNull()?.toString() ?: "?",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MonashBlue
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // Content
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = user.name,
@@ -192,45 +316,29 @@ fun ChatHistoryItem(
                     )
                     
                     Text(
-                        text = if (user.isMentor) "Mentor" else "Student",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = timestamp,
+                        style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
                 }
                 
-                // Timestamp
-                Text(
-                    text = timestamp,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Last Message
-            Text(
-                text = lastMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Subjects
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                user.subjects.forEach { subject ->
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = subject,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MonashBlue,
-                        modifier = Modifier
-                            .background(Color(0xFFE3F2FD), RoundedCornerShape(16.dp))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                        text = if (user.isMentor) "👨‍🏫" else "👨‍🎓",
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                    
+                    Text(
+                        text = lastMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }

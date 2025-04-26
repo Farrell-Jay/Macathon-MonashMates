@@ -182,6 +182,10 @@ fun LoginScreen() {
                             if (user != null) {
                                 userManager.setCurrentUser(user)
                                 Toast.makeText(context, "Mentor login successful! Redirecting to MentorExpertisePage", Toast.LENGTH_SHORT).show()
+                                
+                                // Ensure Firebase auth is synced first
+                                userManager.signInWithFirebase(studentId)
+                                
                                 val intent = Intent(context, MentorExpertisePage::class.java)
                                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                 context.startActivity(intent)
@@ -286,6 +290,10 @@ private fun checkStudentCollection(
                 if (user != null) {
                     userManager.setCurrentUser(user)
                     Toast.makeText(context, "Student login successful! Redirecting to StudentInterestPage", Toast.LENGTH_SHORT).show()
+                    
+                    // Ensure Firebase auth is synced first
+                    userManager.signInWithFirebase(studentId)
+                    
                     // Navigate to StudentInterestPage
                     val intent = Intent(context, StudentInterestPage::class.java)
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

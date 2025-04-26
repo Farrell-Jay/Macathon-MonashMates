@@ -2,6 +2,7 @@ package com.example.macathon_monashmates.screens
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -24,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.macathon_monashmates.R
 import com.example.macathon_monashmates.models.User
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 
 class ProfileViewPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +41,7 @@ class ProfileViewPage : ComponentActivity() {
 @Composable
 fun ProfileViewScreen(user: User) {
     val context = LocalContext.current
+    val auth = Firebase.auth
     
     Column(
         modifier = Modifier
@@ -155,6 +159,8 @@ fun ProfileViewScreen(user: User) {
             onClick = {
                 val intent = Intent(context, ChatPage::class.java).apply {
                     putExtra("user", user)
+                    // Add source parameter so ChatPage knows where to go back
+                    putExtra("source", "profile_view")
                 }
                 context.startActivity(intent)
             },
